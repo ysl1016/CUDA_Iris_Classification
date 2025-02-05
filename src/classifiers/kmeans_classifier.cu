@@ -136,30 +136,24 @@ __global__ void mapClustersToClassesKernel(const int* cluster_labels,
 }
 
 void KMeansClassifier::train(const IrisData& data) {
-    // Allocate memory
-    CUDA_CHECK(cudaMalloc(&d_centroids, k * data.n_features * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_cluster_labels, data.n_samples * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_cluster_sizes, k * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_new_centroids, k * data.n_features * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_cluster_to_class_map, k * sizeof(int)));
-    
+    // Allocate device memory
+    CUDA_CHECK(cudaMalloc(&d_centroids, n_clusters * data.n_features * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_cluster_sizes, n_clusters * sizeof(int)));
+    CUDA_CHECK(cudaMalloc(&d_new_centroids, n_clusters * data.n_features * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_cluster_to_class_map, n_clusters * sizeof(int)));
+
     // Initialize centroids
     initializeCentroids(data.features, data.n_samples);
-    
-    // Main k-means loop
+
+    // Iterate until convergence
     bool converged = false;
     int iteration = 0;
-    
     while (!converged && iteration < max_iterations) {
-        // Assign points to clusters
         assignClusters(data.features, data.n_samples);
-        
-        // Update centroids
         converged = updateCentroids(data.features, data.n_samples);
-        
         iteration++;
     }
-    
+
     // Map clusters to classes
     mapClustersToClasses(data.labels, data.n_samples);
 }
@@ -182,7 +176,7 @@ void KMeansClassifier::predict(const float* features, int n_samples, int* predic
         d_nearest_centroids,
         n_samples,
         4,  // n_features for Iris
-        k
+        n_clusters
     );
     
     // Map cluster assignments to class predictions
@@ -224,7 +218,6 @@ float KMeansClassifier::accuracy(const int* predictions, const int* labels, int 
 
 KMeansClassifier::~KMeansClassifier() {
     if (d_centroids) CUDA_CHECK(cudaFree(d_centroids));
-    if (d_cluster_labels) CUDA_CHECK(cudaFree(d_cluster_labels));
     if (d_cluster_sizes) CUDA_CHECK(cudaFree(d_cluster_sizes));
     if (d_new_centroids) CUDA_CHECK(cudaFree(d_new_centroids));
     if (d_cluster_to_class_map) CUDA_CHECK(cudaFree(d_cluster_to_class_map));
