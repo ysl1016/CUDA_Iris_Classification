@@ -1,4 +1,10 @@
-#include "neural_network.h"
+#include "classifiers/neural_network.h"
+#include <thrust/device_vector.h>
+#include <thrust/transform.h>
+#include <thrust/fill.h>
+#include <thrust/copy.h>
+#include <thrust/reduce.h>
+#include <thrust/functional.h>
 #include <thrust/extrema.h>
 
 __global__ void forwardPassKernel(const float* input,
