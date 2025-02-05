@@ -1,5 +1,19 @@
 #include "ensemble/ensemble_classifier.h"
 #include "utils/metrics_utils.h"
+#include <thrust/execution_policy.h>
+
+// Add constant for max epochs
+#define MAX_EPOCHS 100
+
+EnsembleClassifier::EnsembleClassifier() {
+    CUDA_CHECK(cudaMalloc(&d_weights, n_classifiers * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_predictions, n_classifiers * sizeof(int)));
+}
+
+EnsembleClassifier::~EnsembleClassifier() {
+    if (d_weights) CUDA_CHECK(cudaFree(d_weights));
+    if (d_predictions) CUDA_CHECK(cudaFree(d_predictions));
+}
 
 __global__ void weightedVoteKernel(const int* individual_predictions,
                                  const float* weights,
@@ -41,7 +55,7 @@ void EnsembleClassifier::train(const IrisData& data) {
     
     // Initialize weights equally
     float initial_weight = 1.0f / n_classifiers;
-    thrust::fill(thrust::device, d_weights, d_weights + n_classifiers, initial_weight);
+    thrust::fill(thrust::device.get(), d_weights, d_weights + n_classifiers, initial_weight);
     
     // Update weights based on validation performance
     updateWeights(data.features, data.labels, data.n_samples);
@@ -61,6 +75,11 @@ void EnsembleClassifier::predict(const float* features, int* predictions, int n_
     nn.predict(features, d_nn_pred, n_samples);
     kmeans.predict(features, d_kmeans_pred, n_samples);
     
+    // Copy individual predictions to combined array
+    CUDA_CHECK(cudaMemcpy(d_predictions, d_svm_pred, n_samples * sizeof(int), cudaMemcpyDeviceToDevice));
+    CUDA_CHECK(cudaMemcpy(d_predictions + n_samples, d_nn_pred, n_samples * sizeof(int), cudaMemcpyDeviceToDevice));
+    CUDA_CHECK(cudaMemcpy(d_predictions + 2 * n_samples, d_kmeans_pred, n_samples * sizeof(int), cudaMemcpyDeviceToDevice));
+    
     // Combine predictions using weighted voting
     dim3 block_size(BLOCK_SIZE);
     dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
@@ -71,7 +90,7 @@ void EnsembleClassifier::predict(const float* features, int* predictions, int n_
         predictions,
         n_samples,
         n_classifiers,
-        data.n_classes
+        3  // n_classes for Iris dataset
     );
     
     // Cleanup
