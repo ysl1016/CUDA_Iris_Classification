@@ -1,8 +1,11 @@
-#include "data_preprocessor.h"
+#include "preprocessing/data_preprocessor.h"
+#include "utils/metrics_utils.h"
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 #include <thrust/random.h>
 #include <thrust/shuffle.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <random>
 
 __global__ void computeMeanKernel(const float* features, 
                                  float* mean, 
