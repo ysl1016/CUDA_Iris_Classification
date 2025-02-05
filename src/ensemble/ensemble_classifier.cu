@@ -5,11 +5,6 @@
 // Add constant for max epochs
 #define MAX_EPOCHS 100
 
-EnsembleClassifier::EnsembleClassifier() {
-    CUDA_CHECK(cudaMalloc(&d_weights, n_classifiers * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_predictions, n_classifiers * sizeof(int)));
-}
-
 EnsembleClassifier::~EnsembleClassifier() {
     if (d_weights) CUDA_CHECK(cudaFree(d_weights));
     if (d_predictions) CUDA_CHECK(cudaFree(d_predictions));
@@ -55,7 +50,7 @@ void EnsembleClassifier::train(const IrisData& data) {
     
     // Initialize weights equally
     float initial_weight = 1.0f / n_classifiers;
-    thrust::fill(thrust::device.get(), d_weights, d_weights + n_classifiers, initial_weight);
+    thrust::fill(thrust::device, d_weights, d_weights + n_classifiers, initial_weight);
     
     // Update weights based on validation performance
     updateWeights(data.features, data.labels, data.n_samples);

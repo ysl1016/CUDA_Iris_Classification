@@ -6,7 +6,10 @@
 
 class EnsembleClassifier {
 public:
-    EnsembleClassifier();
+    EnsembleClassifier() : nn(4, 8, 3), kmeans(3) {
+        CUDA_CHECK(cudaMalloc(&d_weights, n_classifiers * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_predictions, n_classifiers * sizeof(int)));
+    }
     ~EnsembleClassifier();
 
     void train(const IrisData& data);
