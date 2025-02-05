@@ -1,9 +1,18 @@
-#include "kmeans_classifier.h"
+#include <float.h>
+#include <cfloat>
+#include <cuda_runtime.h>
 #include <thrust/device_vector.h>
-#include <thrust/transform_reduce.h>
+#include <thrust/host_vector.h>
+#include <thrust/transform.h>
+#include <thrust/sequence.h>
+#include <thrust/copy.h>
+#include <thrust/fill.h>
+#include <thrust/replace.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/constant_iterator.h>
+#include <thrust/iterator/counting_iterator.h>
 #include <thrust/extrema.h>
 #include <curand_kernel.h>
-#include <cfloat>
 
 // Initialize centroids using k-means++ algorithm
 __global__ void initializeCentroidsKernel(const float* features,
