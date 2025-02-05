@@ -93,3 +93,16 @@ void EnsembleClassifier::predict(const float* features, int* predictions, int n_
     CUDA_CHECK(cudaFree(d_nn_pred));
     CUDA_CHECK(cudaFree(d_kmeans_pred));
 }
+
+void EnsembleClassifier::updateWeights(const float* features, const int* labels, int n_samples) {
+    // Update weights based on individual classifier performance
+    float* accuracies = new float[n_classifiers];
+    accuracies[0] = svm.getAccuracy(features, labels, n_samples);
+    accuracies[1] = nn.getAccuracy(features, labels, n_samples);
+    accuracies[2] = kmeans.getAccuracy(features, labels, n_samples);
+    
+    // Copy accuracies to device and normalize them
+    CUDA_CHECK(cudaMemcpy(d_weights, accuracies, n_classifiers * sizeof(float), 
+                         cudaMemcpyHostToDevice));
+    delete[] accuracies;
+}

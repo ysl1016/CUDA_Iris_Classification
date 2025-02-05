@@ -235,3 +235,68 @@ KMeansClassifier::~KMeansClassifier() {
     if (d_new_centroids) CUDA_CHECK(cudaFree(d_new_centroids));
     if (d_cluster_to_class_map) CUDA_CHECK(cudaFree(d_cluster_to_class_map));
 }
+
+void KMeansClassifier::initializeCentroids(const float* features, int n_samples) {
+    dim3 block_size(BLOCK_SIZE);
+    dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
+    
+    initializeCentroidsKernel<<<grid_size, block_size>>>(
+        features,
+        d_centroids,
+        n_samples,
+        4,  // n_features for Iris
+        static_cast<unsigned int>(time(nullptr))
+    );
+}
+
+void KMeansClassifier::assignClusters(const float* features, int n_samples) {
+    float* d_distances;
+    CUDA_CHECK(cudaMalloc(&d_distances, n_samples * n_clusters * sizeof(float)));
+    
+    dim3 block_size(BLOCK_SIZE);
+    dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
+    
+    computeDistancesKernel<<<grid_size, block_size>>>(
+        features,
+        d_centroids,
+        d_distances,
+        d_cluster_assignments,
+        n_samples,
+        4,  // n_features for Iris
+        n_clusters
+    );
+    
+    CUDA_CHECK(cudaFree(d_distances));
+}
+
+void KMeansClassifier::updateCentroids(const float* features, int n_samples) {
+    // Implementation using thrust::reduce_by_key for centroid updates
+    thrust::device_ptr<const int> d_assignments(d_cluster_assignments);
+    thrust::device_ptr<const float> d_features(features);
+    thrust::device_ptr<float> d_new_centroids(d_centroids);
+    
+    // Update centroids using mean of assigned points
+    for (int f = 0; f < 4; ++f) {
+        thrust::reduce_by_key(
+            d_assignments,
+            d_assignments + n_samples,
+            d_features + f,
+            thrust::make_discard_iterator(),
+            d_new_centroids + f
+        );
+    }
+}
+
+void KMeansClassifier::mapClustersToClasses(const int* labels, int n_samples) {
+    dim3 block_size(BLOCK_SIZE);
+    dim3 grid_size((n_clusters + BLOCK_SIZE - 1) / BLOCK_SIZE);
+    
+    mapClustersToClassesKernel<<<grid_size, block_size>>>(
+        d_cluster_assignments,
+        labels,
+        d_cluster_to_class_map,
+        n_samples,
+        n_clusters,
+        3  // n_classes for Iris
+    );
+}

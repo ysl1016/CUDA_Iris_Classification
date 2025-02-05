@@ -54,6 +54,37 @@ __global__ void backwardPassKernel(float* d_weights,
     }
 }
 
+void NeuralNetwork::forwardPass(const float* input, int n_samples) {
+    dim3 block_size(BLOCK_SIZE);
+    dim3 grid_size((n_samples * output_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
+    
+    forwardPassKernel<<<grid_size, block_size>>>(
+        input,
+        d_weights,
+        d_bias,
+        d_output,
+        n_samples,
+        input_size,
+        output_size
+    );
+}
+
+void NeuralNetwork::backwardPass(const float* input, const int* labels, int n_samples) {
+    dim3 block_size(BLOCK_SIZE);
+    dim3 grid_size((n_samples * output_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
+    
+    backwardPassKernel<<<grid_size, block_size>>>(
+        d_weights,
+        d_output,
+        input,
+        labels,
+        learning_rate,
+        n_samples,
+        input_size,
+        output_size
+    );
+}
+
 void NeuralNetwork::train(const IrisData& data, int epochs) {
     for (int epoch = 0; epoch < epochs; epoch++) {
         forwardPass(data.features, data.n_samples);
