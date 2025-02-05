@@ -15,6 +15,7 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/extrema.h>
 #include <curand_kernel.h>
+#include <thrust/iterator/discard_iterator.h>
 
 // Initialize centroids using k-means++ algorithm
 __global__ void initializeCentroidsKernel(const float* features,
@@ -284,7 +285,7 @@ bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
             d_assignments,
             d_assignments + n_samples,
             d_features + f,
-            thrust::make_discard_iterator(),
+            thrust::make_counting_iterator(0),
             d_new_centroids + f,
             thrust::equal_to<int>(),
             thrust::plus<float>()
