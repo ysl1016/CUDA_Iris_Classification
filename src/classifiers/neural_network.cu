@@ -1,4 +1,5 @@
 #include "neural_network.h"
+#include <thrust/extrema.h>
 
 __global__ void forwardPassKernel(const float* input,
                                  const float* weights,

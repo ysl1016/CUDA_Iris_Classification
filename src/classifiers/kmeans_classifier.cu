@@ -3,6 +3,7 @@
 #include <thrust/transform_reduce.h>
 #include <thrust/extrema.h>
 #include <curand_kernel.h>
+#include <cfloat>
 
 // Initialize centroids using k-means++ algorithm
 __global__ void initializeCentroidsKernel(const float* features,
