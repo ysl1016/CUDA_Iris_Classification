@@ -135,6 +135,21 @@ __global__ void mapClustersToClassesKernel(const int* cluster_labels,
     }
 }
 
+// Add this struct before the KMeansClassifier class implementation
+struct CompareLabels {
+    const thrust::device_ptr<const int> pred;
+    const thrust::device_ptr<const int> labels;
+    
+    __host__ __device__
+    CompareLabels(thrust::device_ptr<const int> p, thrust::device_ptr<const int> l) 
+        : pred(p), labels(l) {}
+    
+    __host__ __device__
+    int operator()(int idx) const {
+        return pred[idx] == labels[idx] ? 1 : 0;
+    }
+};
+
 void KMeansClassifier::train(const IrisData& data) {
     // Allocate device memory
     CUDA_CHECK(cudaMalloc(&d_centroids, n_clusters * data.n_features * sizeof(float)));
@@ -202,13 +217,11 @@ float KMeansClassifier::accuracy(const int* predictions, const int* labels, int 
     thrust::device_ptr<const int> d_labels_ptr(labels);
     thrust::device_ptr<const int> d_pred_ptr(predictions);
     
-    auto counting = thrust::make_counting_iterator(0);
+    CompareLabels compare(d_pred_ptr, d_labels_ptr);
     int correct = thrust::transform_reduce(
-        counting,
-        counting + n_samples,
-        [=] __device__ (int idx) {
-            return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
-        },
+        thrust::make_counting_iterator(0),
+        thrust::make_counting_iterator(n_samples),
+        compare,
         0,
         thrust::plus<int>()
     );
