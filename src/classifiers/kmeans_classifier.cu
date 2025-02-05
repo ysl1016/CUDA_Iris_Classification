@@ -150,13 +150,16 @@ struct CompareLabels {
     }
 };
 
-void KMeansClassifier::train(const IrisData& data) {
-    // Allocate device memory
-    CUDA_CHECK(cudaMalloc(&d_centroids, n_clusters * data.n_features * sizeof(float)));
+KMeansClassifier::KMeansClassifier(int clusters) 
+    : n_clusters(clusters), max_iterations(100), convergence_threshold(1e-4) {
+    CUDA_CHECK(cudaMalloc(&d_centroids, n_clusters * 4 * sizeof(float)));
     CUDA_CHECK(cudaMalloc(&d_cluster_sizes, n_clusters * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_new_centroids, n_clusters * data.n_features * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_new_centroids, n_clusters * 4 * sizeof(float)));
     CUDA_CHECK(cudaMalloc(&d_cluster_to_class_map, n_clusters * sizeof(int)));
+    CUDA_CHECK(cudaMalloc(&d_cluster_labels, n_clusters * sizeof(int)));
+}
 
+void KMeansClassifier::train(const IrisData& data) {
     // Initialize centroids
     initializeCentroids(data.features, data.n_samples);
 
@@ -234,6 +237,7 @@ KMeansClassifier::~KMeansClassifier() {
     if (d_cluster_sizes) CUDA_CHECK(cudaFree(d_cluster_sizes));
     if (d_new_centroids) CUDA_CHECK(cudaFree(d_new_centroids));
     if (d_cluster_to_class_map) CUDA_CHECK(cudaFree(d_cluster_to_class_map));
+    if (d_cluster_labels) CUDA_CHECK(cudaFree(d_cluster_labels));
 }
 
 void KMeansClassifier::initializeCentroids(const float* features, int n_samples) {
@@ -260,7 +264,7 @@ void KMeansClassifier::assignClusters(const float* features, int n_samples) {
         features,
         d_centroids,
         d_distances,
-        d_cluster_assignments,
+        d_cluster_labels,
         n_samples,
         4,  // n_features for Iris
         n_clusters
@@ -269,9 +273,8 @@ void KMeansClassifier::assignClusters(const float* features, int n_samples) {
     CUDA_CHECK(cudaFree(d_distances));
 }
 
-void KMeansClassifier::updateCentroids(const float* features, int n_samples) {
-    // Implementation using thrust::reduce_by_key for centroid updates
-    thrust::device_ptr<const int> d_assignments(d_cluster_assignments);
+bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
+    thrust::device_ptr<const int> d_assignments(d_cluster_labels);
     thrust::device_ptr<const float> d_features(features);
     thrust::device_ptr<float> d_new_centroids(d_centroids);
     
@@ -282,21 +285,49 @@ void KMeansClassifier::updateCentroids(const float* features, int n_samples) {
             d_assignments + n_samples,
             d_features + f,
             thrust::make_discard_iterator(),
-            d_new_centroids + f
+            d_new_centroids + f,
+            thrust::equal_to<int>(),
+            thrust::plus<float>()
         );
     }
+    
+    // Check for convergence
+    float max_movement = 0.0f;
+    for (int i = 0; i < n_clusters * 4; ++i) {
+        float diff = abs(d_centroids[i] - d_new_centroids[i]);
+        max_movement = max(max_movement, diff);
+    }
+    
+    // Update centroids
+    thrust::copy(d_new_centroids, d_new_centroids + n_clusters * 4, d_centroids);
+    
+    return max_movement < convergence_threshold;
 }
 
 void KMeansClassifier::mapClustersToClasses(const int* labels, int n_samples) {
-    dim3 block_size(BLOCK_SIZE);
-    dim3 grid_size((n_clusters + BLOCK_SIZE - 1) / BLOCK_SIZE);
+    thrust::device_vector<int> d_votes(n_clusters * 3, 0);  // 3 classes for Iris
     
-    mapClustersToClassesKernel<<<grid_size, block_size>>>(
-        d_cluster_assignments,
-        labels,
-        d_cluster_to_class_map,
-        n_samples,
-        n_clusters,
-        3  // n_classes for Iris
-    );
+    // Count votes for each class in each cluster
+    thrust::device_ptr<const int> d_labels(labels);
+    thrust::device_ptr<const int> d_clusters(d_cluster_labels);
+    
+    for (int i = 0; i < n_samples; ++i) {
+        int cluster = d_clusters[i];
+        int label = d_labels[i];
+        d_votes[cluster * 3 + label]++;
+    }
+    
+    // Assign each cluster to the most frequent class
+    for (int i = 0; i < n_clusters; ++i) {
+        int max_votes = 0;
+        int assigned_class = 0;
+        for (int j = 0; j < 3; ++j) {
+            if (d_votes[i * 3 + j] > max_votes) {
+                max_votes = d_votes[i * 3 + j];
+                assigned_class = j;
+            }
+        }
+        thrust::device_ptr<int> d_map(d_cluster_to_class_map);
+        d_map[i] = assigned_class;
+    }
 }
