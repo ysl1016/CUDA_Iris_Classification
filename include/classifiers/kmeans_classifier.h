@@ -3,15 +3,15 @@
 
 class KMeansClassifier {
 public:
-    KMeansClassifier(int k = 3, int max_iter = 100);
+    KMeansClassifier(int n_clusters);
     ~KMeansClassifier();
 
     void train(const IrisData& data);
-    void predict(const float* features, int* predictions, int n_samples);
-    float getAccuracy(const float* features, const int* labels, int n_samples);
+    void predict(const float* features, int n_samples, int* predictions);
+    float accuracy(const int* predictions, const int* labels, int n_samples);
 
 private:
-    int k;                  // number of clusters
+    int n_clusters;
     int max_iterations;     // maximum iterations for convergence
     float convergence_threshold;  // threshold for centroid movement
 

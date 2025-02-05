@@ -1,3 +1,4 @@
+#include "classifiers/kmeans_classifier.h"
 #include <float.h>
 #include <cfloat>
 #include <cuda_runtime.h>
@@ -162,7 +163,7 @@ void KMeansClassifier::train(const IrisData& data) {
     mapClustersToClasses(data.labels, data.n_samples);
 }
 
-void KMeansClassifier::predict(const float* features, int* predictions, int n_samples) {
+void KMeansClassifier::predict(const float* features, int n_samples, int* predictions) {
     float* d_distances;
     int* d_nearest_centroids;
     
@@ -202,17 +203,10 @@ void KMeansClassifier::predict(const float* features, int* predictions, int n_sa
     CUDA_CHECK(cudaFree(d_nearest_centroids));
 }
 
-float KMeansClassifier::getAccuracy(const float* features, 
-                                   const int* labels, 
-                                   int n_samples) {
-    int* d_predictions;
-    CUDA_CHECK(cudaMalloc(&d_predictions, n_samples * sizeof(int)));
-    
-    predict(features, d_predictions, n_samples);
-    
+float KMeansClassifier::accuracy(const int* predictions, const int* labels, int n_samples) {
     // Count correct predictions
     thrust::device_ptr<const int> d_labels_ptr(labels);
-    thrust::device_ptr<const int> d_pred_ptr(d_predictions);
+    thrust::device_ptr<const int> d_pred_ptr(predictions);
     
     int correct = thrust::transform_reduce(
         thrust::make_zip_iterator(thrust::make_tuple(d_labels_ptr, d_pred_ptr)),
@@ -223,8 +217,6 @@ float KMeansClassifier::getAccuracy(const float* features,
         0,
         thrust::plus<int>()
     );
-    
-    CUDA_CHECK(cudaFree(d_predictions));
     
     return static_cast<float>(correct) / n_samples;
 }

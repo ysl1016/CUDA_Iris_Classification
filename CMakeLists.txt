@@ -21,10 +21,6 @@ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --extended-lambda")
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/data
-)
 
 # Add source files
 file(GLOB_RECURSE SOURCES 
