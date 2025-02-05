@@ -1,4 +1,11 @@
-#include "svm_classifier.h"
+#include "classifiers/svm_classifier.h"
+#include <thrust/device_vector.h>
+#include <thrust/transform.h>
+#include <thrust/fill.h>
+#include <thrust/copy.h>
+#include <thrust/reduce.h>
+#include <thrust/functional.h>
+#include <thrust/extrema.h>
 
 __global__ void computeRBFKernel(float* kernel_matrix,
                                 const float* features,
