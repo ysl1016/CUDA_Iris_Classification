@@ -1,4 +1,4 @@
-#include "cuda_utils.h"
+#include "utils/cuda_utils.h"
 #include <iostream>
 
 namespace CudaUtils {
@@ -26,29 +26,25 @@ void checkDeviceProperties() {
 }
 
 template<typename T>
-void allocateDeviceMemory(T** d_ptr, size_t size) {
-    cudaError_t error = cudaMalloc(d_ptr, size);
-    checkCudaError(error, __FILE__, __LINE__);
+T* allocateDevice(size_t size) {
+    T* ptr;
+    CUDA_CHECK(cudaMalloc(&ptr, size * sizeof(T)));
+    return ptr;
 }
 
 template<typename T>
-void freeDeviceMemory(T* d_ptr) {
-    if (d_ptr != nullptr) {
-        cudaError_t error = cudaFree(d_ptr);
-        checkCudaError(error, __FILE__, __LINE__);
-    }
+void freeDevice(T* ptr) {
+    if (ptr) CUDA_CHECK(cudaFree(ptr));
 }
 
 template<typename T>
 void copyToDevice(T* d_dst, const T* h_src, size_t size) {
-    cudaError_t error = cudaMemcpy(d_dst, h_src, size, cudaMemcpyHostToDevice);
-    checkCudaError(error, __FILE__, __LINE__);
+    CUDA_CHECK(cudaMemcpy(d_dst, h_src, size * sizeof(T), cudaMemcpyHostToDevice));
 }
 
 template<typename T>
 void copyToHost(T* h_dst, const T* d_src, size_t size) {
-    cudaError_t error = cudaMemcpy(h_dst, d_src, size, cudaMemcpyDeviceToHost);
-    checkCudaError(error, __FILE__, __LINE__);
+    CUDA_CHECK(cudaMemcpy(h_dst, d_src, size * sizeof(T), cudaMemcpyDeviceToHost));
 }
 
 void calculateGridSize(int n, int block_size, dim3& grid_size, dim3& block_dim) {
@@ -63,9 +59,9 @@ void calculateGridSize(int n, int block_size, dim3& grid_size, dim3& block_dim) 
 
 void checkCudaError(cudaError_t error, const char* file, int line) {
     if (error != cudaSuccess) {
-        std::cerr << "CUDA error at " << file << ":" << line 
-                  << ": " << cudaGetErrorString(error) << std::endl;
-        throw std::runtime_error("CUDA error");
+        fprintf(stderr, "CUDA error at %s:%d: %s\n", file, line, 
+                cudaGetErrorString(error));
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -86,14 +82,39 @@ void printMemoryUsage() {
     std::cout << "  Free:  " << free_mb << " MB" << std::endl;
 }
 
-// Explicit template instantiations for commonly used types
-template void allocateDeviceMemory<float>(float**, size_t);
-template void allocateDeviceMemory<int>(int**, size_t);
-template void freeDeviceMemory<float>(float*);
-template void freeDeviceMemory<int>(int*);
+void printDeviceProperties() {
+    cudaDeviceProp prop;
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+    std::cout << "Device: " << prop.name << std::endl;
+    std::cout << "Max threads per block: " << prop.maxThreadsPerBlock << std::endl;
+    std::cout << "Max block dimensions: " << prop.maxThreadsDim[0] << "x" 
+              << prop.maxThreadsDim[1] << "x" << prop.maxThreadsDim[2] << std::endl;
+    std::cout << "Max grid dimensions: " << prop.maxGridSize[0] << "x" 
+              << prop.maxGridSize[1] << "x" << prop.maxGridSize[2] << std::endl;
+}
+
+template<typename T>
+void copyHostToDevice(T* d_dest, const T* h_src, size_t size) {
+    CUDA_CHECK(cudaMemcpy(d_dest, h_src, size * sizeof(T), cudaMemcpyHostToDevice));
+}
+
+template<typename T>
+void copyDeviceToHost(T* h_dest, const T* d_src, size_t size) {
+    CUDA_CHECK(cudaMemcpy(h_dest, d_src, size * sizeof(T), cudaMemcpyDeviceToHost));
+}
+
+// Explicit template instantiations
+template float* allocateDevice<float>(size_t);
+template int* allocateDevice<int>(size_t);
+template void freeDevice<float>(float*);
+template void freeDevice<int>(int*);
 template void copyToDevice<float>(float*, const float*, size_t);
 template void copyToDevice<int>(int*, const int*, size_t);
 template void copyToHost<float>(float*, const float*, size_t);
 template void copyToHost<int>(int*, const int*, size_t);
+template void copyHostToDevice<float>(float*, const float*, size_t);
+template void copyHostToDevice<int>(int*, const int*, size_t);
+template void copyDeviceToHost<float>(float*, const float*, size_t);
+template void copyDeviceToHost<int>(int*, const int*, size_t);
 
 }
