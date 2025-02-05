@@ -5,6 +5,8 @@
 #include <thrust/random.h>
 #include <thrust/shuffle.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/extrema.h>
+#include <thrust/sequence.h>
 #include <random>
 
 __global__ void computeMeanKernel(const float* features, 
@@ -74,8 +76,9 @@ void DataPreprocessor::normalizeFeatures(IrisData& data) {
     // Calculate min and max values for each feature
     for (int f = 0; f < data.n_features; ++f) {
         thrust::device_ptr<float> d_feature = thrust::device_pointer_cast(data.features + f);
-        d_min[f] = *thrust::min_element(d_feature, d_feature + data.n_samples * data.n_features, data.n_features);
-        d_max[f] = *thrust::max_element(d_feature, d_feature + data.n_samples * data.n_features, data.n_features);
+        thrust::device_ptr<float> d_end = d_feature + data.n_samples * data.n_features;
+        d_min[f] = *thrust::min_element(thrust::device, d_feature, d_end);
+        d_max[f] = *thrust::max_element(thrust::device, d_feature, d_end);
     }
     
     // Launch normalization kernel
@@ -149,22 +152,22 @@ void DataPreprocessor::shuffleData(IrisData& data) {
 }
 
 void DataPreprocessor::augmentData(IrisData& data, float noise_std) {
-    // Add Gaussian noise to features
     thrust::default_random_engine rng(std::random_device{}());
     thrust::normal_distribution<float> dist(0.0f, noise_std);
     
     int total_elements = data.n_samples * data.n_features;
     thrust::device_vector<float> noise(total_elements);
     
-    // Generate noise
-    thrust::transform(thrust::counting_iterator<int>(0),
-                     thrust::counting_iterator<int>(total_elements),
-                     noise.begin(),
-                     [=] __device__ (int idx) {
-                         thrust::default_random_engine rng_local = rng;
-                         rng_local.discard(idx);
-                         return dist(rng_local);
-                     });
+    // Generate noise using device-side RNG
+    thrust::transform(
+        thrust::make_counting_iterator(0),
+        thrust::make_counting_iterator(total_elements),
+        noise.begin(),
+        [rng, dist] __device__ (int idx) mutable {
+            rng.discard(idx);
+            return dist(rng);
+        }
+    );
     
     // Add noise to features
     thrust::transform(thrust::device_pointer_cast(data.features),
