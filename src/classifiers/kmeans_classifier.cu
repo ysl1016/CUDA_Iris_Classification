@@ -199,15 +199,15 @@ void KMeansClassifier::predict(const float* features, int n_samples, int* predic
 }
 
 float KMeansClassifier::accuracy(const int* predictions, const int* labels, int n_samples) {
-    // Count correct predictions
     thrust::device_ptr<const int> d_labels_ptr(labels);
     thrust::device_ptr<const int> d_pred_ptr(predictions);
     
+    auto counting = thrust::make_counting_iterator(0);
     int correct = thrust::transform_reduce(
-        thrust::make_zip_iterator(thrust::make_tuple(d_labels_ptr, d_pred_ptr)),
-        thrust::make_zip_iterator(thrust::make_tuple(d_labels_ptr + n_samples, d_pred_ptr + n_samples)),
-        [] __device__ (const thrust::tuple<const int&, const int&>& t) {
-            return thrust::get<0>(t) == thrust::get<1>(t) ? 1 : 0;
+        counting,
+        counting + n_samples,
+        [=] __device__ (int idx) {
+            return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
         },
         0,
         thrust::plus<int>()
