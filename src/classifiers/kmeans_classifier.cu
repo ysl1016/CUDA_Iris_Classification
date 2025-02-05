@@ -43,7 +43,7 @@ __global__ void computeDistancesKernel(const float* features,
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (idx < n_samples) {
-        float min_distance = FLT_MAX;
+        float min_distance = 3.402823466e+38f;  // float max value
         int nearest_centroid = 0;
         
         // Find nearest centroid
