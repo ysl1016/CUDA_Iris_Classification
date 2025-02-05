@@ -4,6 +4,16 @@
 
 std::chrono::high_resolution_clock::time_point PerformanceMonitor::start_time;
 
+PerformanceMonitor::PerformanceMonitor() {
+    CUDA_CHECK(cudaEventCreate(&start));
+    CUDA_CHECK(cudaEventCreate(&stop));
+}
+
+PerformanceMonitor::~PerformanceMonitor() {
+    CUDA_CHECK(cudaEventDestroy(start));
+    CUDA_CHECK(cudaEventDestroy(stop));
+}
+
 void PerformanceMonitor::startTimer() {
     start_time = std::chrono::high_resolution_clock::now();
 }
@@ -12,7 +22,7 @@ float PerformanceMonitor::stopTimer() {
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
                    (end_time - start_time);
-    return duration.count() / 1000.0f;  // Convert to seconds
+    return duration.count() / 1000.0f;
 }
 
 size_t PerformanceMonitor::getCurrentMemoryUsage() {
