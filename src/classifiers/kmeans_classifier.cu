@@ -277,22 +277,41 @@ void KMeansClassifier::assignClusters(const float* features, int n_samples) {
 bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
     thrust::device_ptr<const int> d_assignments(d_cluster_labels);
     thrust::device_ptr<const float> d_features(features);
-    thrust::device_ptr<float> d_new_centroids(d_centroids);
+    thrust::device_ptr<float> d_new_centroids_ptr(d_new_centroids);
     
-    // Update centroids using mean of assigned points
+    // Zero out new centroids
+    thrust::fill(d_new_centroids_ptr, d_new_centroids_ptr + n_clusters * 4, 0.0f);
+    
+    // Create temporary storage for cluster sizes
+    thrust::device_vector<int> d_cluster_sizes_vec(n_clusters, 0);
+    thrust::device_ptr<int> d_sizes_ptr = d_cluster_sizes_vec.data();
+    
+    // For each feature dimension
     for (int f = 0; f < 4; ++f) {
-        thrust::reduce_by_key(
-            d_assignments,
-            d_assignments + n_samples,
-            d_features + f,
-            thrust::make_counting_iterator(0),
-            d_new_centroids + f,
-            thrust::equal_to<int>(),
-            thrust::plus<float>()
-        );
+        // Count cluster sizes and sum feature values
+        for (int i = 0; i < n_samples; ++i) {
+            int cluster = d_assignments[i];
+            float value = d_features[i * 4 + f];
+            
+            // Atomically add to cluster sums and sizes
+            atomicAdd(&d_new_centroids_ptr[cluster * 4 + f], value);
+            if (f == 0) { // Only count sizes once
+                atomicAdd(&d_sizes_ptr[cluster], 1);
+            }
+        }
     }
     
-    // Check for convergence
+    // Compute means
+    for (int c = 0; c < n_clusters; ++c) {
+        int size = d_cluster_sizes_vec[c];
+        if (size > 0) {
+            for (int f = 0; f < 4; ++f) {
+                d_new_centroids_ptr[c * 4 + f] /= size;
+            }
+        }
+    }
+    
+    // Calculate maximum centroid movement
     float max_movement = 0.0f;
     for (int i = 0; i < n_clusters * 4; ++i) {
         float diff = abs(d_centroids[i] - d_new_centroids[i]);
@@ -300,7 +319,7 @@ bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
     }
     
     // Update centroids
-    thrust::copy(d_new_centroids, d_new_centroids + n_clusters * 4, d_centroids);
+    thrust::copy(d_new_centroids_ptr, d_new_centroids_ptr + n_clusters * 4, thrust::device_ptr<float>(d_centroids));
     
     return max_movement < convergence_threshold;
 }
