@@ -1,8 +1,8 @@
 #pragma once
 #include "common.h"
-#include "svm_classifier.h"
-#include "neural_network.h"
-#include "kmeans_classifier.h"
+#include "classifiers/svm_classifier.h"
+#include "classifiers/neural_network.h"
+#include "classifiers/kmeans_classifier.h"
 
 class EnsembleClassifier {
 public:
