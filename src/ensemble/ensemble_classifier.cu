@@ -68,7 +68,7 @@ void EnsembleClassifier::predict(const float* features, int* predictions, int n_
     
     svm.predict(features, d_svm_pred, n_samples);
     nn.predict(features, d_nn_pred, n_samples);
-    kmeans.predict(features, d_kmeans_pred, n_samples);
+    kmeans.predict(features, n_samples, d_kmeans_pred);
     
     // Copy individual predictions to combined array
     CUDA_CHECK(cudaMemcpy(d_predictions, d_svm_pred, n_samples * sizeof(int), cudaMemcpyDeviceToDevice));
