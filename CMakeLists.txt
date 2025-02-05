@@ -13,7 +13,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
 find_package(CUDA REQUIRED)
 
 # Set compiler flags
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 --extended-lambda")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 # CUDA NVCC flags
@@ -81,3 +81,10 @@ target_link_libraries(run_tests
 
 # Add test
 add_test(NAME unit_tests COMMAND run_tests)
+
+# add compiler options
+add_compile_options(-O3)
+
+# NVCC flags
+set_property(TARGET iris_classifier PROPERTY CUDA_ARCHITECTURES native)
+set_property(TARGET iris_classifier PROPERTY CUDA_SEPARABLE_COMPILATION ON)
