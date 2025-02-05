@@ -5,18 +5,22 @@
 
 namespace MetricsUtils {
 
+struct CompareLabels {
+    __host__ __device__
+    int operator()(const thrust::tuple<const int&, const int&>& t) const {
+        return thrust::get<0>(t) == thrust::get<1>(t) ? 1 : 0;
+    }
+};
+
 // Calculate accuracy by comparing predictions with true labels
 float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
     thrust::device_ptr<const int> d_pred(predictions);
     thrust::device_ptr<const int> d_labels(labels);
     
-    // Count correct predictions using thrust transform_reduce
     int correct = thrust::transform_reduce(
         thrust::make_zip_iterator(thrust::make_tuple(d_pred, d_labels)),
         thrust::make_zip_iterator(thrust::make_tuple(d_pred + n_samples, d_labels + n_samples)),
-        [] __device__ (const thrust::tuple<const int&, const int&>& t) {
-            return thrust::get<0>(t) == thrust::get<1>(t) ? 1 : 0;
-        },
+        CompareLabels(),
         0,
         thrust::plus<int>()
     );
