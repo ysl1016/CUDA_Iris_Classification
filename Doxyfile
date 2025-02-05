@@ -1,0 +1,13 @@
+PROJECT_NAME           = "Iris Classification System"
+PROJECT_BRIEF         = "CUDA-accelerated Iris Classification"
+OUTPUT_DIRECTORY      = docs
+CREATE_SUBDIRS        = YES
+EXTRACT_ALL           = YES
+EXTRACT_PRIVATE       = YES
+EXTRACT_STATIC        = YES
+INPUT                 = src include tests
+FILE_PATTERNS        = *.cu *.h *.cpp
+RECURSIVE            = YES
+GENERATE_HTML        = YES
+GENERATE_LATEX       = NO
+USE_MDFILE_AS_MAINPAGE = README.md

@@ -1,6 +1,44 @@
+<<<<<<< HEAD
 *.i
 *.ii
 *.gpu
 *.ptx
 *.cubin
 *.fatbin
+=======
+# Build directory
+build/
+
+# Generated documentation
+docs/
+
+# Compiled files
+bin/*
+!bin/.gitkeep
+lib/*
+!lib/.gitkeep
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE files
+.vscode/
+.idea/
+
+# Generated results
+results/*
+!results/.gitkeep
+
+# CUDA compiled files
+*.o
+*.out
+*.ptx
+*.cubin
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+>>>>>>> 99cb9da (Initial commit: CUDA-based Iris Classification System)
