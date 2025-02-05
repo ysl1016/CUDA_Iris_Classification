@@ -4,6 +4,7 @@
 #include "data/iris_data_loader.h"
 #include "preprocessing/data_preprocessor.h"
 #include "ensemble/ensemble_classifier.h"
+#include "utils/metrics_utils.h"
 
 void printResults(const std::string& classifier_name, 
                  float accuracy, 

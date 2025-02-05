@@ -1,4 +1,5 @@
 #include "classifiers/kmeans_classifier.h"
+#include "utils/metrics_utils.h"
 #include <float.h>
 #include <cfloat>
 #include <cuda_runtime.h>

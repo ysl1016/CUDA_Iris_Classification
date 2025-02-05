@@ -1,4 +1,4 @@
-#include "metrics_utils.h"
+#include "utils/metrics_utils.h"
 #include <thrust/device_vector.h>
 #include <thrust/transform_reduce.h>
 #include <thrust/functional.h>

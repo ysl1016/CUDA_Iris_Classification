@@ -1,4 +1,5 @@
-#include "ensemble_classifier.h"
+#include "ensemble/ensemble_classifier.h"
+#include "utils/metrics_utils.h"
 
 __global__ void weightedVoteKernel(const int* individual_predictions,
                                  const float* weights,
