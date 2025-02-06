@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
+cmake_policy(SET CMP0146 OLD)
 project(iris_classification CUDA CXX)
 
 # Set CUDA architectures
