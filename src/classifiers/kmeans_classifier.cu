@@ -329,16 +329,12 @@ bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
 }
 
 float KMeansClassifier::getAccuracy(const float* features, const int* labels, int n_samples) {
-    // accuracy calculation
-    float* predictions;
-    cudaMallocHost(&predictions, n_samples * sizeof(float));
-    predict(features, predictions, n_samples);
+    int* predictions;
+    CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
     
-    int correct = 0;
-    for(int i = 0; i < n_samples; i++) {
-        if(predictions[i] == labels[i]) correct++;
-    }
+    predict(features, n_samples, predictions);
+    float acc = accuracy(predictions, labels, n_samples);
     
-    cudaFreeHost(predictions);
-    return static_cast<float>(correct) / n_samples;
+    CUDA_CHECK(cudaFree(predictions));
+    return acc;
 }
