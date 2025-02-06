@@ -327,3 +327,18 @@ bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
     
     return max_movement < convergence_threshold;
 }
+
+float KMeansClassifier::getAccuracy(const float* features, const int* labels, int n_samples) {
+    // accuracy calculation
+    float* predictions;
+    cudaMallocHost(&predictions, n_samples * sizeof(float));
+    predict(features, predictions, n_samples);
+    
+    int correct = 0;
+    for(int i = 0; i < n_samples; i++) {
+        if(predictions[i] == labels[i]) correct++;
+    }
+    
+    cudaFreeHost(predictions);
+    return static_cast<float>(correct) / n_samples;
+}
