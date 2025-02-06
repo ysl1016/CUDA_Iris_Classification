@@ -53,30 +53,32 @@ target_link_libraries(iris_classifier_lib
     ${CUDA_curand_LIBRARY}
 )
 
-# Enable testing
-enable_testing()
+find_package(GTest)
+if(NOT GTEST_FOUND)
+    message(STATUS "GTest not found - disabling tests")
+    set(BUILD_TESTING OFF)
+else()
+    enable_testing()
+    include_directories(${GTEST_INCLUDE_DIRS})
+endif()
 
-# Find GTest package
-find_package(GTest REQUIRED)
-include_directories(${GTEST_INCLUDE_DIRS})
+if(BUILD_TESTING)
+    file(GLOB_RECURSE TEST_SOURCES 
+        "tests/*.cu"
+        "tests/*.cpp"
+    )
 
-# Add test executable
-file(GLOB_RECURSE TEST_SOURCES 
-    "tests/*.cu"
-    "tests/*.cpp"
-)
+    cuda_add_executable(run_tests ${TEST_SOURCES})
+    target_link_libraries(run_tests
+        ${GTEST_LIBRARIES}
+        ${CUDA_LIBRARIES}
+        ${CUDA_CUBLAS_LIBRARIES}
+        ${CUDA_curand_LIBRARY}
+        pthread
+    )
 
-cuda_add_executable(run_tests ${TEST_SOURCES})
-target_link_libraries(run_tests
-    ${GTEST_LIBRARIES}
-    ${CUDA_LIBRARIES}
-    ${CUDA_CUBLAS_LIBRARIES}
-    ${CUDA_curand_LIBRARY}
-    pthread
-)
-
-# Add test
-add_test(NAME unit_tests COMMAND run_tests)
+    add_test(NAME unit_tests COMMAND run_tests)
+endif()
 
 # add compiler options
 add_compile_options(-O3)
