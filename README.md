@@ -1,7 +1,6 @@
-# CUDA_Iris_Classification
-CUDA-based Iris Classification System with multiple classifiers
+# CUDA-based Iris Classification System with multiple classifiers
 =======
-# Iris Classification System with CUDA GPU Acceleration
+#### Iris Classification System with CUDA GPU Acceleration
 
 A high-performance hybrid classification system for the Iris dataset using CUDA GPU acceleration. This project implements multiple classification algorithms (SVM, Neural Network, K-means) and combines them using an ensemble approach.
 
