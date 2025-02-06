@@ -332,7 +332,10 @@ float KMeansClassifier::getAccuracy(const float* features, const int* labels, in
     int* predictions;
     CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
     
+    // Get predictions
     predict(features, n_samples, predictions);
+    
+    // Calculate accuracy
     float acc = accuracy(predictions, labels, n_samples);
     
     CUDA_CHECK(cudaFree(predictions));
