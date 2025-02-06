@@ -178,43 +178,51 @@ void KMeansClassifier::train(const IrisData& data) {
 }
 
 void KMeansClassifier::predict(const float* features, int n_samples, int* predictions) {
-    float* d_distances;
-    int* d_nearest_centroids;
+    float* d_distances = nullptr;
+    int* d_nearest_centroids = nullptr;
     
-    CUDA_CHECK(cudaMalloc(&d_distances, n_samples * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_nearest_centroids, n_samples * sizeof(int)));
+    try {
+        CUDA_CHECK(cudaMalloc(&d_distances, n_samples * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_nearest_centroids, n_samples * sizeof(int)));
+        
+        // Compute distances to centroids
+        dim3 block_size(BLOCK_SIZE);
+        dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
+        
+        computeDistancesKernel<<<grid_size, block_size>>>(
+            features,
+            d_centroids,
+            d_distances,
+            d_nearest_centroids,
+            n_samples,
+            4,  // n_features for Iris
+            n_clusters
+        );
+        
+        // Map cluster assignments to class predictions
+        thrust::device_ptr<int> d_nearest_ptr(d_nearest_centroids);
+        thrust::device_ptr<int> d_pred_ptr(predictions);
+        thrust::device_ptr<int> d_map_ptr(d_cluster_to_class_map);
+        
+        thrust::transform(
+            d_nearest_ptr,
+            d_nearest_ptr + n_samples,
+            d_pred_ptr,
+            [d_map_ptr] __device__ (int cluster) {
+                return d_map_ptr[cluster];
+            }
+        );
+        
+        CUDA_CHECK(cudaGetLastError());
+    }
+    catch (const std::runtime_error& e) {
+        if (d_distances) cudaFree(d_distances);
+        if (d_nearest_centroids) cudaFree(d_nearest_centroids);
+        throw;
+    }
     
-    // Compute distances to centroids
-    dim3 block_size(BLOCK_SIZE);
-    dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
-    
-    computeDistancesKernel<<<grid_size, block_size>>>(
-        features,
-        d_centroids,
-        d_distances,
-        d_nearest_centroids,
-        n_samples,
-        4,  // n_features for Iris
-        n_clusters
-    );
-    
-    // Map cluster assignments to class predictions
-    thrust::device_ptr<int> d_nearest_ptr(d_nearest_centroids);
-    thrust::device_ptr<int> d_pred_ptr(predictions);
-    thrust::device_ptr<int> d_map_ptr(d_cluster_to_class_map);
-    
-    thrust::transform(
-        d_nearest_ptr,
-        d_nearest_ptr + n_samples,
-        d_pred_ptr,
-        [d_map_ptr] __device__ (int cluster) {
-            return d_map_ptr[cluster];
-        }
-    );
-    
-    // Cleanup
-    CUDA_CHECK(cudaFree(d_distances));
-    CUDA_CHECK(cudaFree(d_nearest_centroids));
+    cudaFree(d_distances);
+    cudaFree(d_nearest_centroids);
 }
 
 float KMeansClassifier::accuracy(const int* predictions, const int* labels, int n_samples) {
