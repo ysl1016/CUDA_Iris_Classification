@@ -98,6 +98,27 @@ int main(int argc, char** argv) {
         // Cleanup
         CUDA_CHECK(cudaFree(predictions));
 
+        // Train ensemble classifier
+        std::cout << "\nTraining classifiers..." << std::endl;
+        ensemble.train(train_data);
+
+        // Test ensemble classifier
+        start = std::chrono::high_resolution_clock::now();
+        float accuracy = ensemble.getAccuracy(test_data.features, test_data.labels, test_data.n_samples);
+        end = std::chrono::high_resolution_clock::now();
+        float ensemble_training_time = std::chrono::duration<float, std::milli>(end - start).count();
+        float ensemble_prediction_time = 0.0f; // Assuming prediction time is not provided in the original code
+
+        // Print results
+        std::cout << "\nResults:" << std::endl;
+        std::cout << std::setw(15) << "Classifier" << " | "
+                  << std::setw(10) << "Accuracy" << " | "
+                  << std::setw(8) << "Train" << " | "
+                  << std::setw(8) << "Predict" << std::endl;
+        std::cout << std::string(45, '-') << std::endl;
+
+        printResults("Ensemble", accuracy, ensemble_training_time, ensemble_prediction_time);
+
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
