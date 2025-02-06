@@ -6,6 +6,7 @@
 #include <thrust/reduce.h>
 #include <thrust/functional.h>
 #include <thrust/extrema.h>
+#include <thrust/device_ptr.h>
 
 __global__ void forwardPassKernel(const float* input,
                                  const float* weights,
@@ -137,14 +138,44 @@ private:
     float learning_rate;
     
 public:
-    NeuralNetwork(float lr = 0.01) : learning_rate(lr) {
-        // initialize weights and bias
-        cudaMalloc(&d_weights, sizeof(float) * LAYER_SIZE);
-        cudaMalloc(&d_bias, sizeof(float) * OUTPUT_SIZE);
+    NeuralNetwork(int input_size, int hidden_size, int output_size)
+        : input_size(input_size), hidden_size(hidden_size), output_size(output_size) {
+        // Initialize network parameters
+        initializeParameters();
     }
     
     ~NeuralNetwork() {
-        cudaFree(d_weights);
-        cudaFree(d_bias);
+        // Free device memory
+        cudaFree(d_W1);
+        cudaFree(d_W2);
+        cudaFree(d_b1);
+        cudaFree(d_b2);
+        cudaFree(d_h);
+        cudaFree(d_output);
+    }
+
+    float getAccuracy(const float* features, const int* labels, int n_samples) {
+        int* predictions;
+        CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
+        
+        predict(features, predictions, n_samples);
+        
+        // Calculate accuracy using thrust
+        thrust::device_ptr<const int> d_pred_ptr(predictions);
+        thrust::device_ptr<const int> d_labels_ptr(labels);
+        
+        int correct = thrust::transform_reduce(
+            thrust::device,
+            thrust::make_counting_iterator(0),
+            thrust::make_counting_iterator(n_samples),
+            [=] __device__ (int idx) {
+                return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
+            },
+            0,
+            thrust::plus<int>()
+        );
+        
+        CUDA_CHECK(cudaFree(predictions));
+        return static_cast<float>(correct) / n_samples;
     }
 };
