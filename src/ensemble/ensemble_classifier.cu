@@ -66,41 +66,43 @@ void EnsembleClassifier::train(const IrisData& data) {
 }
 
 void EnsembleClassifier::predict(const float* features, int* predictions, int n_samples) {
-    // Get predictions from each classifier
-    int* d_svm_pred;
-    int* d_nn_pred;
-    int* d_kmeans_pred;
+    int* d_svm_pred = nullptr;
+    int* d_nn_pred = nullptr;
+    int* d_kmeans_pred = nullptr;
     
-    CUDA_CHECK(cudaMalloc(&d_svm_pred, n_samples * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_nn_pred, n_samples * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_kmeans_pred, n_samples * sizeof(int)));
+    try {
+        CUDA_CHECK(cudaMalloc(&d_svm_pred, n_samples * sizeof(int)));
+        CUDA_CHECK(cudaMalloc(&d_nn_pred, n_samples * sizeof(int)));
+        CUDA_CHECK(cudaMalloc(&d_kmeans_pred, n_samples * sizeof(int)));
+        
+        // Get predictions
+        svm.predict(features, d_svm_pred, n_samples);
+        nn.predict(features, d_nn_pred, n_samples);
+        kmeans.predict(features, n_samples, d_kmeans_pred);
+        
+        // Combine predictions
+        const int n_classes = 3;  // Iris has 3 classes
+        weightedVoteKernel<<<grid_size, block_size>>>(
+            d_predictions,
+            d_weights,
+            predictions,
+            n_samples,
+            n_classifiers,
+            n_classes
+        );
+        CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());
+        
+    } catch (const std::runtime_error& e) {
+        cudaFree(d_svm_pred);
+        cudaFree(d_nn_pred);
+        cudaFree(d_kmeans_pred);
+        throw;
+    }
     
-    svm.predict(features, d_svm_pred, n_samples);
-    nn.predict(features, d_nn_pred, n_samples);
-    kmeans.predict(features, n_samples, d_kmeans_pred);
-    
-    // Copy individual predictions to combined array
-    CUDA_CHECK(cudaMemcpy(d_predictions, d_svm_pred, n_samples * sizeof(int), cudaMemcpyDeviceToDevice));
-    CUDA_CHECK(cudaMemcpy(d_predictions + n_samples, d_nn_pred, n_samples * sizeof(int), cudaMemcpyDeviceToDevice));
-    CUDA_CHECK(cudaMemcpy(d_predictions + 2 * n_samples, d_kmeans_pred, n_samples * sizeof(int), cudaMemcpyDeviceToDevice));
-    
-    // Combine predictions using weighted voting
-    dim3 block_size(BLOCK_SIZE);
-    dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
-    
-    weightedVoteKernel<<<grid_size, block_size>>>(
-        d_predictions,
-        d_weights,
-        predictions,
-        n_samples,
-        n_classifiers,
-        3  // n_classes for Iris dataset
-    );
-    
-    // Cleanup
-    CUDA_CHECK(cudaFree(d_svm_pred));
-    CUDA_CHECK(cudaFree(d_nn_pred));
-    CUDA_CHECK(cudaFree(d_kmeans_pred));
+    cudaFree(d_svm_pred);
+    cudaFree(d_nn_pred);
+    cudaFree(d_kmeans_pred);
 }
 
 void EnsembleClassifier::updateWeights(const float* features, const int* labels, int n_samples) {
