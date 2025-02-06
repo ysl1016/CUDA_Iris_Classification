@@ -106,6 +106,30 @@ void NeuralNetwork::predict(const float* features, int* predictions, int n_sampl
     }
 }
 
+void NeuralNetwork::initializeParameters() {
+    // Allocate memory for weights and biases
+    size_t w1_size = input_size * hidden_size * sizeof(float);
+    size_t w2_size = hidden_size * output_size * sizeof(float);
+    size_t b1_size = hidden_size * sizeof(float);
+    size_t b2_size = output_size * sizeof(float);
+    
+    CUDA_CHECK(cudaMalloc(&d_W1, w1_size));
+    CUDA_CHECK(cudaMalloc(&d_W2, w2_size));
+    CUDA_CHECK(cudaMalloc(&d_b1, b1_size));
+    CUDA_CHECK(cudaMalloc(&d_b2, b2_size));
+    
+    // Initialize with random values
+    thrust::device_ptr<float> w1_ptr(d_W1);
+    thrust::device_ptr<float> w2_ptr(d_W2);
+    thrust::device_ptr<float> b1_ptr(d_b1);
+    thrust::device_ptr<float> b2_ptr(d_b2);
+    
+    thrust::fill(thrust::device, w1_ptr, w1_ptr + input_size * hidden_size, 0.01f);
+    thrust::fill(thrust::device, w2_ptr, w2_ptr + hidden_size * output_size, 0.01f);
+    thrust::fill(thrust::device, b1_ptr, b1_ptr + hidden_size, 0.0f);
+    thrust::fill(thrust::device, b2_ptr, b2_ptr + output_size, 0.0f);
+}
+
 class NeuralNetwork {
 private:
     float* d_weights;
