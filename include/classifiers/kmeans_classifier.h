@@ -9,6 +9,7 @@ public:
     void train(const IrisData& data);
     void predict(const float* features, int n_samples, int* predictions);
     float accuracy(const int* predictions, const int* labels, int n_samples);
+    float getAccuracy(const float* features, const int* labels, int n_samples);
 
 private:
     int n_clusters;
