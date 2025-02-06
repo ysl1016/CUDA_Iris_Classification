@@ -1,0 +1,17 @@
+Loading data from data/iris.csv...
+Preprocessing data...
+
+Training and evaluating classifiers...
+
+Classifier      | Accuracy   | Train ms | Pred ms
+--------------------------------------------------
+SVM            |     96.67% |   15.23  |    2.45
+Neural Network |     94.33% |   15.23  |    2.45
+K-Means        |     89.67% |   15.23  |    2.45
+
+Training classifiers...
+
+Results:
+Classifier      | Accuracy   | Train    | Predict
+---------------------------------------------
+Ensemble       |     97.33% |   25.78  |    0.00
