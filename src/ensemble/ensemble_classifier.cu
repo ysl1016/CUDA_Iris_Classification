@@ -80,16 +80,28 @@ void EnsembleClassifier::predict(const float* features, int* predictions, int n_
         nn.predict(features, d_nn_pred, n_samples);
         kmeans.predict(features, n_samples, d_kmeans_pred);
         
-        // Combine predictions
-        const int n_classes = 3;  // Iris has 3 classes
+        
+        dim3 block_size(BLOCK_SIZE);
+        dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
+        
+        // Copy individual predictions to combined array
+        CUDA_CHECK(cudaMemcpy(d_predictions, d_svm_pred, n_samples * sizeof(int), 
+                             cudaMemcpyDeviceToDevice));
+        CUDA_CHECK(cudaMemcpy(d_predictions + n_samples, d_nn_pred, n_samples * sizeof(int), 
+                             cudaMemcpyDeviceToDevice));
+        CUDA_CHECK(cudaMemcpy(d_predictions + 2 * n_samples, d_kmeans_pred, n_samples * sizeof(int), 
+                             cudaMemcpyDeviceToDevice));
+        
+        // Combine predictions using weighted voting
         weightedVoteKernel<<<grid_size, block_size>>>(
             d_predictions,
             d_weights,
             predictions,
             n_samples,
             n_classifiers,
-            n_classes
+            N_CLASSES
         );
+        
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         
@@ -105,15 +117,57 @@ void EnsembleClassifier::predict(const float* features, int* predictions, int n_
     cudaFree(d_kmeans_pred);
 }
 
-void EnsembleClassifier::updateWeights(const float* features, const int* labels, int n_samples) {
-    // Update weights based on individual classifier performance
-    float* accuracies = new float[n_classifiers];
-    accuracies[0] = svm.getAccuracy(features, labels, n_samples);
-    accuracies[1] = nn.getAccuracy(features, labels, n_samples);
-    accuracies[2] = kmeans.getAccuracy(features, labels, n_samples);
+float EnsembleClassifier::getAccuracy(const float* features, const int* labels, int n_samples) {
+    int* predictions;
+    CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
     
-    // Copy accuracies to device and normalize them
-    CUDA_CHECK(cudaMemcpy(d_weights, accuracies, n_classifiers * sizeof(float), 
-                         cudaMemcpyHostToDevice));
+    try {
+        predict(features, predictions, n_samples);
+        
+        float accuracy = MetricsUtils::calculateAccuracy(predictions, labels, n_samples);
+        CUDA_CHECK(cudaFree(predictions));
+        return accuracy;
+    } catch (const std::runtime_error& e) {
+        if (predictions) cudaFree(predictions);
+        throw std::runtime_error("Accuracy calculation failed: " + std::string(e.what()));
+    }
+}
+
+void EnsembleClassifier::updateWeights(const float* features, const int* labels, int n_samples) {
+    // Allocate host memory for accuracies
+    float* accuracies = new float[n_classifiers];
+    float total_accuracy = 0.0f;
+    
+    try {
+        // Calculate accuracy for each classifier
+        accuracies[0] = svm.getAccuracy(features, labels, n_samples);
+        accuracies[1] = nn.getAccuracy(features, labels, n_samples);
+        accuracies[2] = kmeans.getAccuracy(features, labels, n_samples);
+        
+        // Calculate total accuracy for normalization
+        for (int i = 0; i < n_classifiers; i++) {
+            total_accuracy += accuracies[i];
+        }
+        
+        // Normalize weights
+        if (total_accuracy > 0) {
+            for (int i = 0; i < n_classifiers; i++) {
+                accuracies[i] /= total_accuracy;
+            }
+        } else {
+            // If all classifiers perform poorly, use equal weights
+            for (int i = 0; i < n_classifiers; i++) {
+                accuracies[i] = 1.0f / n_classifiers;
+            }
+        }
+        
+        // Update weights on device
+        CUDA_CHECK(cudaMemcpy(d_weights, accuracies, n_classifiers * sizeof(float), 
+                            cudaMemcpyHostToDevice));
+    } catch (const std::runtime_error& e) {
+        delete[] accuracies;
+        throw std::runtime_error("Weight update failed: " + std::string(e.what()));
+    }
+    
     delete[] accuracies;
 }
