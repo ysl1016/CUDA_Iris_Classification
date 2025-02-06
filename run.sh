@@ -94,6 +94,17 @@ if [ $? -ne 0 ]; then
 fi
 print_status "green" "All tests passed"
 
+# Run tests if they exist
+if [ -f "./run_tests" ]; then
+    print_status "yellow" "Running tests..."
+    ./run_tests
+    if [ $? -ne 0 ]; then
+        print_status "red" "Tests failed! Please check the test output above"
+        exit 1
+    fi
+    print_status "green" "All tests passed"
+fi
+
 # Run main program
 print_status "yellow" "Running main program..."
 ./iris_classifier
