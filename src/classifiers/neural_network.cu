@@ -105,3 +105,22 @@ void NeuralNetwork::predict(const float* features, int* predictions, int n_sampl
         d_pred_ptr[i] = thrust::max_element(row_begin, row_end) - row_begin;
     }
 }
+
+class NeuralNetwork {
+private:
+    float* d_weights;
+    float* d_bias;
+    float learning_rate;
+    
+public:
+    NeuralNetwork(float lr = 0.01) : learning_rate(lr) {
+        // initialize weights and bias
+        cudaMalloc(&d_weights, sizeof(float) * LAYER_SIZE);
+        cudaMalloc(&d_bias, sizeof(float) * OUTPUT_SIZE);
+    }
+    
+    ~NeuralNetwork() {
+        cudaFree(d_weights);
+        cudaFree(d_bias);
+    }
+};
