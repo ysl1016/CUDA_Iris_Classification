@@ -286,27 +286,27 @@ bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
     thrust::device_vector<int> d_cluster_sizes_vec(n_clusters, 0);
     thrust::device_ptr<int> d_sizes_ptr = d_cluster_sizes_vec.data();
     
-    // For each feature dimension
-    for (int f = 0; f < 4; ++f) {
-        // Count cluster sizes and sum feature values
-        for (int i = 0; i < n_samples; ++i) {
-            int cluster = d_assignments[i];
-            float value = d_features[i * 4 + f];
-            
-            // Atomically add to cluster sums and sizes
-            atomicAdd(&d_new_centroids_ptr[cluster * 4 + f], value);
-            if (f == 0) { // Only count sizes once
-                atomicAdd(&d_sizes_ptr[cluster], 1);
-            }
-        }
-    }
+    // Use device_vector instead of counting_iterator for modifiable output storage
+    thrust::device_vector<int> d_keys_output(n_samples);  // Allocate storage for output keys
+    thrust::device_vector<float> d_values_output(n_samples);  // Allocate storage for output values
+
+    // Perform reduction by key operation to compute cluster sums
+    auto result = thrust::reduce_by_key(
+        d_cluster_labels,
+        d_cluster_labels + n_samples,
+        d_features,
+        d_keys_output.begin(),
+        d_values_output.begin(),
+        thrust::equal_to<int>(),
+        thrust::plus<float>()
+    );
     
     // Compute means
     for (int c = 0; c < n_clusters; ++c) {
         int size = d_cluster_sizes_vec[c];
         if (size > 0) {
             for (int f = 0; f < 4; ++f) {
-                d_new_centroids_ptr[c * 4 + f] /= size;
+                d_new_centroids_ptr[c * 4 + f] = d_values_output[c * 4 + f] / size;
             }
         }
     }
