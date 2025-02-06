@@ -8,6 +8,10 @@
 #include <thrust/extrema.h>
 #include <thrust/device_ptr.h>
 
+// Constants
+#define LEARNING_RATE 0.01f
+#define BLOCK_SIZE 256
+
 __global__ void forwardPassKernel(const float* input,
                                  const float* weights,
                                  const float* bias,
@@ -55,17 +59,29 @@ __global__ void backwardPassKernel(float* d_weights,
     }
 }
 
-void NeuralNetwork::forwardPass(const float* input, int n_samples) {
+void NeuralNetwork::forwardPass(const float* features, int n_samples) {
     dim3 block_size(BLOCK_SIZE);
     dim3 grid_size((n_samples * output_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
     
+    // First layer
     forwardPassKernel<<<grid_size, block_size>>>(
-        input,
-        d_weights,
-        d_bias,
-        d_output,
+        features,
+        d_W1,
+        d_b1,
+        d_h,
         n_samples,
         input_size,
+        hidden_size
+    );
+    
+    // Second layer
+    forwardPassKernel<<<grid_size, block_size>>>(
+        d_h,
+        d_W2,
+        d_b2,
+        d_output,
+        n_samples,
+        hidden_size,
         output_size
     );
 }
@@ -131,51 +147,27 @@ void NeuralNetwork::initializeParameters() {
     thrust::fill(thrust::device, b2_ptr, b2_ptr + output_size, 0.0f);
 }
 
-class NeuralNetwork {
-private:
-    float* d_weights;
-    float* d_bias;
-    float learning_rate;
+float NeuralNetwork::getAccuracy(const float* features, const int* labels, int n_samples) {
+    int* predictions;
+    CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
     
-public:
-    NeuralNetwork(int input_size, int hidden_size, int output_size)
-        : input_size(input_size), hidden_size(hidden_size), output_size(output_size) {
-        // Initialize network parameters
-        initializeParameters();
-    }
+    predict(features, predictions, n_samples);
     
-    ~NeuralNetwork() {
-        // Free device memory
-        cudaFree(d_W1);
-        cudaFree(d_W2);
-        cudaFree(d_b1);
-        cudaFree(d_b2);
-        cudaFree(d_h);
-        cudaFree(d_output);
-    }
-
-    float getAccuracy(const float* features, const int* labels, int n_samples) {
-        int* predictions;
-        CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
-        
-        predict(features, predictions, n_samples);
-        
-        // Calculate accuracy using thrust
-        thrust::device_ptr<const int> d_pred_ptr(predictions);
-        thrust::device_ptr<const int> d_labels_ptr(labels);
-        
-        int correct = thrust::transform_reduce(
-            thrust::device,
-            thrust::make_counting_iterator(0),
-            thrust::make_counting_iterator(n_samples),
-            [=] __device__ (int idx) {
-                return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
-            },
-            0,
-            thrust::plus<int>()
-        );
-        
-        CUDA_CHECK(cudaFree(predictions));
-        return static_cast<float>(correct) / n_samples;
-    }
-};
+    // Calculate accuracy using thrust
+    thrust::device_ptr<const int> d_pred_ptr(predictions);
+    thrust::device_ptr<const int> d_labels_ptr(labels);
+    
+    int correct = thrust::transform_reduce(
+        thrust::device,
+        thrust::make_counting_iterator(0),
+        thrust::make_counting_iterator(n_samples),
+        [=] __device__ (int idx) {
+            return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
+        },
+        0,
+        thrust::plus<int>()
+    );
+    
+    CUDA_CHECK(cudaFree(predictions));
+    return static_cast<float>(correct) / n_samples;
+}
