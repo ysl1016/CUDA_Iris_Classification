@@ -2,6 +2,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform_reduce.h>
 #include <thrust/functional.h>
+#include <stdexcept>
+#include <string>
 
 namespace MetricsUtils {
 
@@ -14,18 +16,25 @@ struct CompareLabels {
 
 // Calculate accuracy by comparing predictions with true labels
 float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
-    thrust::device_ptr<const int> d_pred(predictions);
-    thrust::device_ptr<const int> d_labels(labels);
-    
-    int correct = thrust::transform_reduce(
-        thrust::make_zip_iterator(thrust::make_tuple(d_pred, d_labels)),
-        thrust::make_zip_iterator(thrust::make_tuple(d_pred + n_samples, d_labels + n_samples)),
-        CompareLabels(),
-        0,
-        thrust::plus<int>()
-    );
-    
-    return static_cast<float>(correct) / n_samples;
+    try {
+        thrust::device_ptr<const int> d_pred(predictions);
+        thrust::device_ptr<const int> d_labels(labels);
+        
+        int correct = thrust::transform_reduce(
+            thrust::make_zip_iterator(thrust::make_tuple(d_pred, d_labels)),
+            thrust::make_zip_iterator(thrust::make_tuple(d_pred + n_samples, d_labels + n_samples)),
+            CompareLabels(),
+            0,
+            thrust::plus<int>()
+        );
+        
+        CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());
+        
+        return static_cast<float>(correct) / n_samples;
+    } catch (const std::runtime_error& e) {
+        throw std::runtime_error("Accuracy calculation failed: " + std::string(e.what()));
+    }
 }
 
 // CUDA kernel for computing confusion matrix
