@@ -1,89 +1,55 @@
-cmake_minimum_required(VERSION 3.10)
-cmake_policy(SET CMP0146 OLD)
+cmake_minimum_required(VERSION 3.18)
 project(iris_classification CUDA CXX)
 
-# Set CUDA architectures
+# Enable CUDA
+enable_language(CUDA)
 set(CMAKE_CUDA_ARCHITECTURES 60 61 70 75 80 86)
 
 # Set output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
 
-# Find CUDA package
-find_package(CUDA REQUIRED)
-
-# Set compiler flags
+# Compiler flags
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-
-# CUDA NVCC flags
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --extended-lambda")
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
-# Add source files
+# Source files
 file(GLOB_RECURSE SOURCES 
     "src/*.cu"
     "src/*.cpp"
 )
 
 # Create executable
-cuda_add_executable(iris_classifier ${SOURCES})
+add_executable(iris_classifier ${SOURCES})
 set_target_properties(iris_classifier PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    CUDA_SEPARABLE_COMPILATION ON
 )
 
 # Create shared library
-cuda_add_library(iris_classifier_lib SHARED ${SOURCES})
+add_library(iris_classifier_lib SHARED ${SOURCES})
 set_target_properties(iris_classifier_lib PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+    CUDA_SEPARABLE_COMPILATION ON
 )
 
-# Link libraries
-target_link_libraries(iris_classifier
-    ${CUDA_LIBRARIES}
-    ${CUDA_CUBLAS_LIBRARIES}
-    ${CUDA_curand_LIBRARY}
-)
-
-target_link_libraries(iris_classifier_lib
-    ${CUDA_LIBRARIES}
-    ${CUDA_CUBLAS_LIBRARIES}
-    ${CUDA_curand_LIBRARY}
-)
-
+# Optional GTest support
 find_package(GTest)
-if(NOT GTEST_FOUND)
-    message(STATUS "GTest not found - disabling tests")
-    set(BUILD_TESTING OFF)
-else()
+if(GTEST_FOUND)
     enable_testing()
     include_directories(${GTEST_INCLUDE_DIRS})
-endif()
-
-if(BUILD_TESTING)
+    
     file(GLOB_RECURSE TEST_SOURCES 
         "tests/*.cu"
         "tests/*.cpp"
     )
-
-    cuda_add_executable(run_tests ${TEST_SOURCES})
+    
+    add_executable(run_tests ${TEST_SOURCES})
     target_link_libraries(run_tests
         ${GTEST_LIBRARIES}
-        ${CUDA_LIBRARIES}
-        ${CUDA_CUBLAS_LIBRARIES}
-        ${CUDA_curand_LIBRARY}
         pthread
     )
-
+    
     add_test(NAME unit_tests COMMAND run_tests)
 endif()
-
-# add compiler options
-add_compile_options(-O3)
-
-# NVCC flags
-set_property(TARGET iris_classifier PROPERTY CUDA_ARCHITECTURES native)
-set_property(TARGET iris_classifier PROPERTY CUDA_SEPARABLE_COMPILATION ON)
