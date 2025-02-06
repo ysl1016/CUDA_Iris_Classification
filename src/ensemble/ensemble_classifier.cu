@@ -43,17 +43,26 @@ __global__ void weightedVoteKernel(const int* individual_predictions,
 }
 
 void EnsembleClassifier::train(const IrisData& data) {
-    // Train individual classifiers
-    svm.train(data);
-    nn.train(data, MAX_EPOCHS);
-    kmeans.train(data);
-    
-    // Initialize weights equally
-    float initial_weight = 1.0f / n_classifiers;
-    thrust::fill(thrust::device, d_weights, d_weights + n_classifiers, initial_weight);
-    
-    // Update weights based on validation performance
-    updateWeights(data.features, data.labels, data.n_samples);
+    try {
+        // Train individual classifiers
+        svm.train(data);
+        nn.train(data, MAX_EPOCHS);
+        kmeans.train(data);
+        
+        // Initialize weights
+        float initial_weight = 1.0f / n_classifiers;
+        thrust::fill(thrust::device, 
+                    thrust::device_pointer_cast(d_weights),
+                    thrust::device_pointer_cast(d_weights + n_classifiers), 
+                    initial_weight);
+        
+        // Update weights
+        updateWeights(data.features, data.labels, data.n_samples);
+        CUDA_CHECK(cudaGetLastError());
+    }
+    catch (const std::runtime_error& e) {
+        throw std::runtime_error("Training failed: " + std::string(e.what()));
+    }
 }
 
 void EnsembleClassifier::predict(const float* features, int* predictions, int n_samples) {
