@@ -286,15 +286,19 @@ bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
     thrust::device_vector<int> d_cluster_sizes_vec(n_clusters, 0);
     thrust::device_ptr<int> d_sizes_ptr = d_cluster_sizes_vec.data();
     
-    // Use device_vector instead of counting_iterator for modifiable output storage
-    thrust::device_vector<int> d_keys_output(n_samples);  // Allocate storage for output keys
-    thrust::device_vector<float> d_values_output(n_samples);  // Allocate storage for output values
-
-    // Perform reduction by key operation to compute cluster sums
+    // Copy cluster labels to device vector to ensure they're in device memory
+    thrust::device_vector<int> d_labels(d_cluster_labels, d_cluster_labels + n_samples);
+    thrust::device_vector<float> d_feature_values(features, features + n_samples * 4);
+    
+    // Perform reduction by key operation using device vectors
+    thrust::device_vector<int> d_keys_output(n_samples);
+    thrust::device_vector<float> d_values_output(n_samples);
+    
     auto result = thrust::reduce_by_key(
-        d_cluster_labels,
-        d_cluster_labels + n_samples,
-        d_features,
+        thrust::device,  // execution policy
+        d_labels.begin(),
+        d_labels.end(),
+        d_feature_values.begin(),
         d_keys_output.begin(),
         d_values_output.begin(),
         thrust::equal_to<int>(),
@@ -322,32 +326,4 @@ bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
     thrust::copy(d_new_centroids_ptr, d_new_centroids_ptr + n_clusters * 4, thrust::device_ptr<float>(d_centroids));
     
     return max_movement < convergence_threshold;
-}
-
-void KMeansClassifier::mapClustersToClasses(const int* labels, int n_samples) {
-    thrust::device_vector<int> d_votes(n_clusters * 3, 0);  // 3 classes for Iris
-    
-    // Count votes for each class in each cluster
-    thrust::device_ptr<const int> d_labels(labels);
-    thrust::device_ptr<const int> d_clusters(d_cluster_labels);
-    
-    for (int i = 0; i < n_samples; ++i) {
-        int cluster = d_clusters[i];
-        int label = d_labels[i];
-        d_votes[cluster * 3 + label]++;
-    }
-    
-    // Assign each cluster to the most frequent class
-    for (int i = 0; i < n_clusters; ++i) {
-        int max_votes = 0;
-        int assigned_class = 0;
-        for (int j = 0; j < 3; ++j) {
-            if (d_votes[i * 3 + j] > max_votes) {
-                max_votes = d_votes[i * 3 + j];
-                assigned_class = j;
-            }
-        }
-        thrust::device_ptr<int> d_map(d_cluster_to_class_map);
-        d_map[i] = assigned_class;
-    }
 }
