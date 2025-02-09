@@ -1,18 +1,14 @@
 #pragma once
 #include "common.h"
+#include <vector>
+#include <fstream>
+#include <sstream>
 
 class IrisDataLoader {
 public:
-    IrisDataLoader();
-    ~IrisDataLoader();
-    
     static bool loadData(IrisData& data);
-    IrisData& getData() { return data; }
-    
 private:
-    IrisData data;
-    void allocateMemory(int n_samples);
-    void freeMemory();
-    static bool loadFromFile(std::vector<float>& features, 
-                           std::vector<int>& labels);
+    static bool loadFromFile(std::vector<float>& features, std::vector<int>& labels);
+    static bool allocateMemory(IrisData& data, int n_samples);
+    static void freeMemory(IrisData& data);
 };
