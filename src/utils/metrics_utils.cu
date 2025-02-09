@@ -10,37 +10,37 @@
 
 namespace MetricsUtils {
 
-struct CompareLabels {
-    __host__ __device__
-    int operator()(const thrust::tuple<const int&, const int&>& t) const {
-        return thrust::get<0>(t) == thrust::get<1>(t) ? 1 : 0;
-    }
-};
-
-// Calculate accuracy by comparing predictions with true labels
-float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
-    // Create device vectors
-    thrust::device_vector<int> d_predictions(predictions, predictions + n_samples);
-    thrust::device_vector<int> d_labels(labels, labels + n_samples);
-    
-    // Define comparison functor with explicit host/device attribute
+namespace {
     struct CompareElements {
         __host__ __device__
-        int operator()(const thrust::tuple<int, int>& t) const {
+        int operator()(thrust::tuple<int, int> t) const {
             return thrust::get<0>(t) == thrust::get<1>(t) ? 1 : 0;
         }
     };
-    
-    // Count correct predictions using zip_iterator and the functor
-    int correct = thrust::transform_reduce(
-        thrust::make_zip_iterator(thrust::make_tuple(d_predictions.begin(), d_labels.begin())),
-        thrust::make_zip_iterator(thrust::make_tuple(d_predictions.end(), d_labels.end())),
-        CompareElements(),
-        0,
-        thrust::plus<int>()
-    );
-    
-    return static_cast<float>(correct) / n_samples;
+}
+
+// Calculate accuracy by comparing predictions with true labels
+float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
+    try {
+        // Create device vectors
+        thrust::device_vector<int> d_predictions(predictions, predictions + n_samples);
+        thrust::device_vector<int> d_labels(labels, labels + n_samples);
+        
+        // Count correct predictions using transform_reduce
+        int correct = thrust::transform_reduce(
+            thrust::cuda::par,
+            thrust::make_zip_iterator(thrust::make_tuple(d_predictions.begin(), d_labels.begin())),
+            thrust::make_zip_iterator(thrust::make_tuple(d_predictions.end(), d_labels.end())),
+            CompareElements(),
+            0,
+            thrust::plus<int>()
+        );
+        
+        return static_cast<float>(correct) / n_samples;
+    }
+    catch (const thrust::system_error& e) {
+        throw std::runtime_error("CUDA error in calculateAccuracy: " + std::string(e.what()));
+    }
 }
 
 // CUDA kernel for computing confusion matrix
@@ -130,9 +130,8 @@ float calculateRecall(const int* confusion_matrix,
 
 // Calculate F1 score from precision and recall
 float calculateF1Score(float precision, float recall) {
-    // Return F1 score, handling division by zero
-    return (precision + recall > 0.0f) ? 
-           2.0f * precision * recall / (precision + recall) : 0.0f;
+    if (precision + recall == 0) return 0.0f;
+    return 2.0f * (precision * recall) / (precision + recall);
 }
 
 }
