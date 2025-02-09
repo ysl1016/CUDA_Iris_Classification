@@ -190,3 +190,25 @@
         
         delete[] accuracies;
     }
+
+    bool EnsembleClassifier::init() {
+        try {
+            if (d_weights == nullptr || d_predictions == nullptr) {
+                // Allocate memory for weights and predictions
+                CUDA_CHECK(cudaMalloc(&d_weights, n_classifiers * sizeof(float)));
+                CUDA_CHECK(cudaMalloc(&d_predictions, MAX_SAMPLES * n_classifiers * sizeof(int)));
+                
+                // Initialize weights equally
+                float initial_weight = 1.0f / n_classifiers;
+                thrust::fill(thrust::device, 
+                            thrust::device_pointer_cast(d_weights),
+                            thrust::device_pointer_cast(d_weights + n_classifiers), 
+                            initial_weight);
+            }
+            return true;
+        }
+        catch (const std::runtime_error& e) {
+            cleanup();
+            return false;
+        }
+    }
