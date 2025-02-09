@@ -6,8 +6,7 @@ public:
     NeuralNetwork(int input_size, int hidden_size, int output_size);
     ~NeuralNetwork();
     
-    void train(const float* features, const int* labels, int n_samples, 
-               float learning_rate = 0.01f, int epochs = 100);
+    void train(const float* features, const int* labels, int n_samples, int epochs = MAX_EPOCHS);
     void predict(const float* features, int* predictions, int n_samples);
     float getAccuracy(const float* features, const int* labels, int n_samples);
 
