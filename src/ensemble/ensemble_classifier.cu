@@ -93,9 +93,9 @@
             // Copy predictions and combine
             cudaMemcpy(d_predictions, d_svm_pred, n_samples * sizeof(int), 
                       cudaMemcpyDeviceToDevice);
-            cudaMemcpy(d_predictions + n_samples, d_nn_pred, n_samples * sizeof(int), 
+            cudaMemcpy(d_predictions + MAX_SAMPLES, d_nn_pred, n_samples * sizeof(int), 
                       cudaMemcpyDeviceToDevice);
-            cudaMemcpy(d_predictions + 2 * n_samples, d_kmeans_pred, n_samples * sizeof(int), 
+            cudaMemcpy(d_predictions + (2 * MAX_SAMPLES), d_kmeans_pred, n_samples * sizeof(int), 
                       cudaMemcpyDeviceToDevice);
             
             dim3 block_size(BLOCK_SIZE);
