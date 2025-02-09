@@ -156,13 +156,16 @@
             thrust::device_ptr<const int> d_pred_ptr(predictions);
             thrust::device_ptr<const int> d_labels_ptr(labels);
             
+            auto counting = thrust::make_counting_iterator<int>(0);
+            auto compare_op = [=] __host__ __device__ (int idx) -> int {
+                return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
+            };
+            
             int correct = thrust::transform_reduce(
                 thrust::device,
-                thrust::make_counting_iterator<int>(0),
-                thrust::make_counting_iterator<int>(n_samples),
-                [=] __device__ (int idx) {
-                    return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
-                },
+                counting,
+                counting + n_samples,
+                compare_op,
                 0,
                 thrust::plus<int>()
             );
