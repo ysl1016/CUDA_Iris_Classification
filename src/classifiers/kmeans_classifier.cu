@@ -351,3 +351,33 @@ float KMeansClassifier::getAccuracy(const float* features, const int* labels, in
     CUDA_CHECK(cudaFree(predictions));
     return acc;
 }
+
+void KMeansClassifier::mapClustersToClasses(const int* labels, int n_samples) {
+    thrust::device_vector<int> d_cluster_counts(n_clusters * 3, 0);  // 3 classes for Iris
+    
+    // Count class occurrences for each cluster
+    for (int i = 0; i < n_samples; ++i) {
+        int cluster = d_cluster_labels[i];
+        int label = labels[i];
+        d_cluster_counts[cluster * 3 + label]++;
+    }
+    
+    // Assign each cluster to the most frequent class
+    thrust::device_vector<int> d_map(n_clusters);
+    for (int i = 0; i < n_clusters; ++i) {
+        int max_count = 0;
+        int max_class = 0;
+        for (int j = 0; j < 3; ++j) {
+            int count = d_cluster_counts[i * 3 + j];
+            if (count > max_count) {
+                max_count = count;
+                max_class = j;
+            }
+        }
+        d_map[i] = max_class;
+    }
+    
+    // Copy mapping to device memory
+    CUDA_CHECK(cudaMemcpy(d_cluster_to_class_map, thrust::raw_pointer_cast(d_map.data()),
+                         n_clusters * sizeof(int), cudaMemcpyDeviceToDevice));
+}
