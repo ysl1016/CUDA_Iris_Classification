@@ -46,7 +46,12 @@ void measureClassifierPerformance(const char* name,
 int main() {
     // data load
     IrisData data;
-    // data load code
+    data.n_features = IrisData::FEATURE_DIM;
+    data.n_classes = IrisData::CLASS_COUNT;
+    
+    if (!IrisDataLoader::loadData(data)) {
+        return -1;
+    }
     
     // preprocessing
     DataPreprocessor::standardizeFeatures(data);
