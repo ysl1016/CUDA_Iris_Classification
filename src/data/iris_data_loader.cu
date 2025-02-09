@@ -2,18 +2,6 @@
 #include <fstream>
 #include <sstream>
 
-IrisDataLoader::IrisDataLoader() {
-    data.features = nullptr;
-    data.labels = nullptr;
-    data.n_samples = 0;
-    data.n_features = 4;
-    data.n_classes = 3;
-}
-
-IrisDataLoader::~IrisDataLoader() {
-    freeMemory();
-}
-
 bool IrisDataLoader::loadData(IrisData& data) {
     std::vector<float> features;
     std::vector<int> labels;
@@ -53,7 +41,7 @@ bool IrisDataLoader::loadData(IrisData& data) {
 bool IrisDataLoader::allocateMemory(IrisData& data, int n_samples) {
     cudaError_t error;
     
-    error = cudaMalloc(&data.features, n_samples * 4 * sizeof(float));
+    error = cudaMalloc(&data.features, n_samples * N_FEATURES * sizeof(float));
     if (error != cudaSuccess) {
         return false;
     }
@@ -67,7 +55,13 @@ bool IrisDataLoader::allocateMemory(IrisData& data, int n_samples) {
     return true;
 }
 
-void IrisDataLoader::freeMemory() {
-    if (data.features) CUDA_CHECK(cudaFree(data.features));
-    if (data.labels) CUDA_CHECK(cudaFree(data.labels));
+void IrisDataLoader::freeMemory(IrisData& data) {
+    if (data.features) {
+        cudaFree(data.features);
+        data.features = nullptr;
+    }
+    if (data.labels) {
+        cudaFree(data.labels);
+        data.labels = nullptr;
+    }
 }
