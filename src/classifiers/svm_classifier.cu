@@ -57,9 +57,9 @@ SVMClassifier::~SVMClassifier() {
     if (d_support_vector_labels) cudaFree(d_support_vector_labels);
 }
 
-void SVMClassifier::train(const IrisData& data) {
+void SVMClassifier::train(const float* features, const int* labels, int n_samples) {
     // Compute kernel matrix
-    computeKernelMatrix(data.features, data.n_samples);
+    computeKernelMatrix(features, n_samples);
     
     // Optimize dual problem using SMO algorithm
     optimizeDual();
