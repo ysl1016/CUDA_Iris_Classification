@@ -63,22 +63,27 @@
 
     void EnsembleClassifier::train(const IrisData& data) {
         try {
-            // Train individual classifiers
+            std::cout << "Training SVM classifier..." << std::endl;
             svm.train(data.features, data.labels, data.n_samples);
+            
+            std::cout << "Training Neural Network..." << std::endl;
             nn.train(data.features, data.labels, data.n_samples, MAX_EPOCHS);
+            
+            std::cout << "Training KMeans classifier..." << std::endl;
             kmeans.train(data);
             
-            // Initialize weights
+            std::cout << "Initializing weights..." << std::endl;
             float initial_weight = 1.0f / n_classifiers;
             thrust::fill(thrust::device, 
                         thrust::device_pointer_cast(d_weights),
                         thrust::device_pointer_cast(d_weights + n_classifiers), 
                         initial_weight);
             
-            // Update weights
+            std::cout << "Updating weights..." << std::endl;
             updateWeights(data.features, data.labels, data.n_samples);
             
             CUDA_CHECK(cudaGetLastError());
+            std::cout << "Training completed successfully" << std::endl;
         }
         catch (const std::runtime_error& e) {
             throw std::runtime_error("Training failed: " + std::string(e.what()));
