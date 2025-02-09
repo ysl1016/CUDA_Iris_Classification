@@ -153,11 +153,11 @@ struct CompareLabels {
 
 KMeansClassifier::KMeansClassifier(int clusters) 
     : n_clusters(clusters), max_iterations(100), convergence_threshold(1e-4) {
-    CUDA_CHECK(cudaMalloc(&d_centroids, n_clusters * 4 * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_centroids, n_clusters * N_FEATURES * sizeof(float)));
     CUDA_CHECK(cudaMalloc(&d_cluster_sizes, n_clusters * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_new_centroids, n_clusters * 4 * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_new_centroids, n_clusters * N_FEATURES * sizeof(float)));
     CUDA_CHECK(cudaMalloc(&d_cluster_to_class_map, n_clusters * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_cluster_labels, n_clusters * sizeof(int)));
+    CUDA_CHECK(cudaMalloc(&d_cluster_labels, MAX_SAMPLES * sizeof(int)));
 }
 
 void KMeansClassifier::train(const IrisData& data) {
