@@ -17,6 +17,24 @@ void printResults(const std::string& classifier_name,
               << std::setw(8) << prediction_time << "ms" << std::endl;
 }
 
+void measureClassifierPerformance(const char* name, 
+                                const IrisData& train_data,
+                                const IrisData& test_data,
+                                std::function<void(const IrisData&)> train_fn,
+                                std::function<float(const float*, const int*, int)> predict_fn) {
+    auto train_start = std::chrono::high_resolution_clock::now();
+    train_fn(train_data);
+    auto train_end = std::chrono::high_resolution_clock::now();
+    float train_time = std::chrono::duration<float, std::milli>(train_end - train_start).count();
+
+    auto predict_start = std::chrono::high_resolution_clock::now();
+    float accuracy = predict_fn(test_data.features, test_data.labels, test_data.n_samples);
+    auto predict_end = std::chrono::high_resolution_clock::now();
+    float predict_time = std::chrono::duration<float, std::milli>(predict_end - predict_start).count();
+
+    printResults(name, accuracy, train_time, predict_time);
+}
+
 int main(int argc, char** argv) {
     // Parse command line arguments
     std::string data_path = "data/iris.csv";
