@@ -200,6 +200,11 @@ void DataPreprocessor::splitData(const IrisData& data, IrisData& train, IrisData
     int n_train = static_cast<int>(data.n_samples * train_ratio);
     int n_test = data.n_samples - n_train;
     
+    train.n_features = data.n_features;
+    test.n_features = data.n_features;
+    train.n_classes = data.n_classes;
+    test.n_classes = data.n_classes;
+    
     // Allocate memory for train and test sets
     CUDA_CHECK(cudaMalloc(&train.features, n_train * 4 * sizeof(float)));
     CUDA_CHECK(cudaMalloc(&train.labels, n_train * sizeof(int)));
