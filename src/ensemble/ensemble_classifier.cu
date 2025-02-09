@@ -67,10 +67,7 @@
             // Update weights
             updateWeights(data.features, data.labels, data.n_samples);
             
-            cudaError_t error = cudaGetLastError();
-            if (error != cudaSuccess) {
-                throw std::runtime_error(cudaGetErrorString(error));
-            }
+            CUDA_CHECK(cudaGetLastError());
         }
         catch (const std::runtime_error& e) {
             throw std::runtime_error("Training failed: " + std::string(e.what()));
