@@ -30,7 +30,7 @@ private:
     float* d_weights;        // Classifier weights
     int* d_predictions;      // Individual classifier predictions
     static const int n_classifiers = 3;
-    static const int MAX_SAMPLES = 150;  // Iris dataset size
+    static const int MAX_SAMPLES = 150;  // Maximum number of samples (Iris dataset size)
     
     void updateWeights(const float* features, const int* labels, int n_samples);
     void cleanup() {
