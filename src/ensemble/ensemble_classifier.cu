@@ -212,3 +212,14 @@
             return false;
         }
     }
+
+    void EnsembleClassifier::cleanup() {
+        if (d_weights) {
+            cudaFree(d_weights);
+            d_weights = nullptr;
+        }
+        if (d_predictions) {
+            cudaFree(d_predictions);
+            d_predictions = nullptr;
+        }
+    }
