@@ -56,16 +56,12 @@ __global__ void normalizeKernel(float* features, const float* min_vals,
     }
 }
 
-__global__ void standardizeKernel(float* features, const float* mean, 
-                                 const float* std, int n_samples, int n_features) {
+__global__ void standardizeKernel(float* features, const float* mean, const float* std,
+                                int n_samples, int n_features) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-    
-    for (int i = idx; i < n_samples * n_features; i += stride) {
-        int feature_idx = i % n_features;
-        if (std[feature_idx] > 0) {
-            features[i] = (features[i] - mean[feature_idx]) / std[feature_idx];
-        }
+    if (idx < n_samples * n_features) {
+        int feature_idx = idx % n_features;
+        features[idx] = (features[idx] - mean[feature_idx]) / std[feature_idx];
     }
 }
 
@@ -97,28 +93,21 @@ void DataPreprocessor::normalizeFeatures(IrisData& data) {
 }
 
 void DataPreprocessor::standardizeFeatures(IrisData& data) {
-    thrust::device_vector<float> d_mean(data.n_features);
-    thrust::device_vector<float> d_std(data.n_features);
+    float* mean;
+    float* std;
+    CUDA_CHECK(cudaMallocHost(&mean, IrisData::n_features * sizeof(float)));
+    CUDA_CHECK(cudaMallocHost(&std, IrisData::n_features * sizeof(float)));
     
-    // Calculate mean and standard deviation
-    calculateMeanAndStd(data.features, data.n_samples, 
-                       data.n_features, 
-                       thrust::raw_pointer_cast(d_mean.data()),
-                       thrust::raw_pointer_cast(d_std.data()));
+    calculateMeanAndStd(data.features, data.n_samples, IrisData::n_features, mean, std);
     
-    // Launch standardization kernel
-    int block_size = BLOCK_SIZE;
-    int num_blocks = (data.n_samples * data.n_features + block_size - 1) / block_size;
-    
-    standardizeKernel<<<num_blocks, block_size>>>(
-        data.features,
-        thrust::raw_pointer_cast(d_mean.data()),
-        thrust::raw_pointer_cast(d_std.data()),
-        data.n_samples,
-        data.n_features
+    int block_size = 256;
+    int grid_size = (data.n_samples * IrisData::n_features + block_size - 1) / block_size;
+    standardizeKernel<<<grid_size, block_size>>>(
+        data.features, mean, std, data.n_samples, IrisData::n_features
     );
     
-    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaFreeHost(mean));
+    CUDA_CHECK(cudaFreeHost(std));
 }
 
 void DataPreprocessor::shuffleData(IrisData& data) {
