@@ -195,7 +195,7 @@ void KMeansClassifier::predict(const float* features, int n_samples, int* predic
             d_distances,
             d_nearest_centroids,
             n_samples,
-            4,  // n_features for Iris
+            N_FEATURES,
             n_clusters
         );
         
