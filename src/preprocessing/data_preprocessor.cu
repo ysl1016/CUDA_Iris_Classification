@@ -94,27 +94,50 @@ void DataPreprocessor::normalizeFeatures(IrisData& data) {
     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
+void DataPreprocessor::calculateMeanAndStd(const float* data, int n_samples, int n_features,
+                                         float* mean, float* std) {
+    // Compute mean using kernel
+    dim3 block_size(BLOCK_SIZE);
+    dim3 grid_size((n_features + BLOCK_SIZE - 1) / BLOCK_SIZE);
+    
+    computeMeanKernel<<<grid_size, block_size>>>(
+        data, mean, n_samples, n_features
+    );
+    
+    // Compute standard deviation using kernel
+    computeStdKernel<<<grid_size, block_size>>>(
+        data, mean, std, n_samples, n_features
+    );
+    
+    CUDA_CHECK(cudaDeviceSynchronize());
+}
+
 void DataPreprocessor::standardizeFeatures(IrisData& data) {
-    float* mean;
-    float* std;
-    CUDA_CHECK(cudaMallocHost(&mean, data.n_features * sizeof(float)));
-    CUDA_CHECK(cudaMallocHost(&std, data.n_features * sizeof(float)));
+    float* d_mean;
+    float* d_std;
+    CUDA_CHECK(cudaMalloc(&d_mean, data.n_features * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_std, data.n_features * sizeof(float)));
     
-    calculateMeanAndStd(data.features, data.n_samples, data.n_features, mean, std);
+    // Calculate mean and std
+    calculateMeanAndStd(data.features, data.n_samples, data.n_features, d_mean, d_std);
     
-    // Standardize features using thrust transform
-    thrust::device_ptr<float> d_features(data.features);
-    for (int f = 0; f < data.n_features; ++f) {
-        thrust::transform(
-            d_features + f,
-            d_features + data.n_samples * data.n_features,
-            d_features + f,
-            [=] __device__ (float x) { return (x - mean[f]) / std[f]; }
-        );
-    }
+    // Launch standardization kernel
+    dim3 block_size(BLOCK_SIZE);
+    dim3 grid_size((data.n_samples * data.n_features + BLOCK_SIZE - 1) / BLOCK_SIZE);
     
-    CUDA_CHECK(cudaFreeHost(mean));
-    CUDA_CHECK(cudaFreeHost(std));
+    standardizeKernel<<<grid_size, block_size>>>(
+        data.features,
+        d_mean,
+        d_std,
+        data.n_samples,
+        data.n_features
+    );
+    
+    CUDA_CHECK(cudaDeviceSynchronize());
+    
+    // Cleanup
+    CUDA_CHECK(cudaFree(d_mean));
+    CUDA_CHECK(cudaFree(d_std));
 }
 
 void DataPreprocessor::shuffleData(IrisData& data) {
@@ -195,43 +218,4 @@ void DataPreprocessor::splitData(const IrisData& data, IrisData& train, IrisData
     
     train.n_samples = n_train;
     test.n_samples = n_test;
-}
-
-void DataPreprocessor::calculateMeanAndStd(const float* data, int n_samples, int n_features,
-                                         float* mean, float* std) {
-    thrust::device_vector<float> d_mean(n_features, 0.0f);
-    thrust::device_vector<float> d_std(n_features, 0.0f);
-    
-    // Calculate mean for each feature
-    for (int f = 0; f < n_features; ++f) {
-        thrust::device_ptr<const float> d_feature(data + f);
-        d_mean[f] = thrust::reduce(
-            thrust::device,
-            d_feature,
-            d_feature + n_samples * n_features,
-            0.0f,
-            thrust::plus<float>()
-        ) / n_samples;
-    }
-    
-    // Calculate standard deviation for each feature
-    for (int f = 0; f < n_features; ++f) {
-        thrust::device_ptr<const float> d_feature(data + f);
-        float feature_mean = d_mean[f];
-        
-        float variance = thrust::transform_reduce(
-            thrust::device,
-            d_feature,
-            d_feature + n_samples * n_features,
-            VarianceOp(feature_mean),
-            0.0f,
-            thrust::plus<float>()
-        ) / n_samples;
-        
-        d_std[f] = sqrt(variance);
-    }
-    
-    // Copy results back to host
-    thrust::copy(d_mean.begin(), d_mean.end(), mean);
-    thrust::copy(d_std.begin(), d_std.end(), std);
 }
