@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <thrust/system/cuda/execution_policy.h>
+#include <iostream>
 
 namespace MetricsUtils {
 
@@ -18,40 +19,74 @@ struct CompareLabels {
 // Calculate accuracy by comparing predictions with true labels
 float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
     try {
-        // 1. allocate device memory for labels
+        // 1. Debug info
+        std::cout << "Starting accuracy calculation..." << std::endl;
+        std::cout << "Number of samples: " << n_samples << std::endl;
+        
+        // 2. Check CUDA device status
+        cudaError_t error = cudaGetLastError();
+        if (error != cudaSuccess) {
+            throw std::runtime_error("CUDA error before calculation: " + 
+                                   std::string(cudaGetErrorString(error)));
+        }
+        
+        // 3. Verify input pointers
+        if (predictions == nullptr || labels == nullptr) {
+            throw std::runtime_error("Null pointer input");
+        }
+        
+        // 4. Allocate and copy labels to device
         int* d_labels;
         CUDA_CHECK(cudaMalloc(&d_labels, n_samples * sizeof(int)));
-        CUDA_CHECK(cudaMemcpy(d_labels, labels, n_samples * sizeof(int), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_labels, labels, n_samples * sizeof(int), 
+                            cudaMemcpyHostToDevice));
         
-        // 2. device synchronization
+        // 5. Create device pointers with verification
+        thrust::device_ptr<const int> d_pred;
+        thrust::device_ptr<const int> d_labels_ptr;
+        
+        try {
+            d_pred = thrust::device_pointer_cast(predictions);
+            d_labels_ptr = thrust::device_pointer_cast(d_labels);
+        } catch (const std::exception& e) {
+            cudaFree(d_labels);
+            throw std::runtime_error("Failed to create device pointers: " + 
+                                   std::string(e.what()));
+        }
+        
+        // 6. Synchronize before calculation
         CUDA_CHECK(cudaDeviceSynchronize());
         
-        // 3. create device pointers
-        thrust::device_ptr<const int> d_pred(predictions);
-        thrust::device_ptr<const int> d_labels_ptr(d_labels);
+        // 7. Calculate accuracy with error checking
+        int correct;
+        try {
+            correct = thrust::transform_reduce(
+                thrust::cuda::par,
+                thrust::make_counting_iterator<int>(0),
+                thrust::make_counting_iterator<int>(n_samples),
+                [=] __device__ (int idx) {
+                    return d_pred[idx] == d_labels_ptr[idx] ? 1 : 0;
+                },
+                0,
+                thrust::plus<int>()
+            );
+        } catch (const std::exception& e) {
+            cudaFree(d_labels);
+            throw std::runtime_error("Transform reduce failed: " + std::string(e.what()));
+        }
         
-        // 4. accuracy calculation
-        int correct = thrust::transform_reduce(
-            thrust::cuda::par,
-            thrust::make_counting_iterator<int>(0),
-            thrust::make_counting_iterator<int>(n_samples),
-            [=] __device__ (int idx) -> int {
-                return d_pred[idx] == d_labels_ptr[idx] ? 1 : 0;
-            },
-            0,
-            thrust::plus<int>()
-        );
-        
-        // 5. synchronization and error check
+        // 8. Final error check and cleanup
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
-        
-        // 6. memory cleanup
         CUDA_CHECK(cudaFree(d_labels));
+        
+        // 9. Debug info
+        std::cout << "Correct predictions: " << correct << "/" << n_samples << std::endl;
         
         return static_cast<float>(correct) / n_samples;
     } catch (const std::runtime_error& e) {
-        throw std::runtime_error("Accuracy calculation failed: " + std::string(e.what()));
+        std::cerr << "Detailed error in accuracy calculation: " << e.what() << std::endl;
+        throw;
     }
 }
 
