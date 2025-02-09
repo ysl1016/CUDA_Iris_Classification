@@ -204,13 +204,15 @@ void KMeansClassifier::predict(const float* features, int n_samples, int* predic
         thrust::device_ptr<int> d_pred_ptr(predictions);
         thrust::device_ptr<int> d_map_ptr(d_cluster_to_class_map);
         
+        auto transform_op = [] __device__ (int cluster, thrust::device_ptr<int> map_ptr) {
+            return map_ptr[cluster];
+        };
+
         thrust::transform(
             d_nearest_ptr,
             d_nearest_ptr + n_samples,
             d_pred_ptr,
-            [d_map_ptr] __device__ (int cluster) {
-                return d_map_ptr[cluster];
-            }
+            [=] __device__ (int cluster) { return transform_op(cluster, d_map_ptr); }
         );
         
         CUDA_CHECK(cudaGetLastError());
