@@ -4,6 +4,7 @@
 #include <thrust/functional.h>
 #include <stdexcept>
 #include <string>
+#include <thrust/system/cuda/execution_policy.h>
 
 namespace MetricsUtils {
 
@@ -21,7 +22,7 @@ float calculateAccuracy(const int* predictions, const int* labels, int n_samples
         thrust::device_ptr<const int> d_labels(labels);
         
         int correct = thrust::transform_reduce(
-            thrust::device,
+            thrust::cuda::par,
             thrust::make_counting_iterator<int>(0),
             thrust::make_counting_iterator<int>(n_samples),
             [=] __host__ __device__ (int idx) -> int {
