@@ -53,8 +53,8 @@
     void EnsembleClassifier::train(const IrisData& data) {
         try {
             // Train individual classifiers
-            svm.train(data);
-            nn.train(data, MAX_EPOCHS);
+            svm.train(data.features, data.labels, data.n_samples);
+            nn.train(data.features, data.labels, data.n_samples, MAX_EPOCHS);
             kmeans.train(data);
             
             // Initialize weights
@@ -66,7 +66,11 @@
             
             // Update weights
             updateWeights(data.features, data.labels, data.n_samples);
-            CUDA_CHECK(cudaGetLastError());
+            
+            cudaError_t error = cudaGetLastError();
+            if (error != cudaSuccess) {
+                throw std::runtime_error(cudaGetErrorString(error));
+            }
         }
         catch (const std::runtime_error& e) {
             throw std::runtime_error("Training failed: " + std::string(e.what()));
@@ -79,28 +83,27 @@
         int* d_kmeans_pred = nullptr;
         
         try {
-            CUDA_CHECK(cudaMalloc(&d_svm_pred, n_samples * sizeof(int)));
-            CUDA_CHECK(cudaMalloc(&d_nn_pred, n_samples * sizeof(int)));
-            CUDA_CHECK(cudaMalloc(&d_kmeans_pred, n_samples * sizeof(int)));
+            // Allocate memory
+            cudaMalloc(&d_svm_pred, n_samples * sizeof(int));
+            cudaMalloc(&d_nn_pred, n_samples * sizeof(int));
+            cudaMalloc(&d_kmeans_pred, n_samples * sizeof(int));
             
             // Get predictions
             svm.predict(features, d_svm_pred, n_samples);
             nn.predict(features, d_nn_pred, n_samples);
             kmeans.predict(features, n_samples, d_kmeans_pred);
             
+            // Copy predictions and combine
+            cudaMemcpy(d_predictions, d_svm_pred, n_samples * sizeof(int), 
+                      cudaMemcpyDeviceToDevice);
+            cudaMemcpy(d_predictions + n_samples, d_nn_pred, n_samples * sizeof(int), 
+                      cudaMemcpyDeviceToDevice);
+            cudaMemcpy(d_predictions + 2 * n_samples, d_kmeans_pred, n_samples * sizeof(int), 
+                      cudaMemcpyDeviceToDevice);
             
             dim3 block_size(BLOCK_SIZE);
             dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
             
-            // Copy individual predictions to combined array
-            CUDA_CHECK(cudaMemcpy(d_predictions, d_svm_pred, n_samples * sizeof(int), 
-                                cudaMemcpyDeviceToDevice));
-            CUDA_CHECK(cudaMemcpy(d_predictions + n_samples, d_nn_pred, n_samples * sizeof(int), 
-                                cudaMemcpyDeviceToDevice));
-            CUDA_CHECK(cudaMemcpy(d_predictions + 2 * n_samples, d_kmeans_pred, n_samples * sizeof(int), 
-                                cudaMemcpyDeviceToDevice));
-            
-            // Combine predictions using weighted voting
             weightedVoteKernel<<<grid_size, block_size>>>(
                 d_predictions,
                 d_weights,
@@ -110,19 +113,18 @@
                 N_CLASSES
             );
             
-            CUDA_CHECK(cudaGetLastError());
-            CUDA_CHECK(cudaDeviceSynchronize());
-            
-        } catch (const std::runtime_error& e) {
-            cudaFree(d_svm_pred);
-            cudaFree(d_nn_pred);
-            cudaFree(d_kmeans_pred);
+            cudaDeviceSynchronize();
+        }
+        catch (const std::runtime_error& e) {
+            if (d_svm_pred) cudaFree(d_svm_pred);
+            if (d_nn_pred) cudaFree(d_nn_pred);
+            if (d_kmeans_pred) cudaFree(d_kmeans_pred);
             throw;
         }
         
-        cudaFree(d_svm_pred);
-        cudaFree(d_nn_pred);
-        cudaFree(d_kmeans_pred);
+        if (d_svm_pred) cudaFree(d_svm_pred);
+        if (d_nn_pred) cudaFree(d_nn_pred);
+        if (d_kmeans_pred) cudaFree(d_kmeans_pred);
     }
 
     float EnsembleClassifier::getAccuracy(const float* features, const int* labels, int n_samples) {
