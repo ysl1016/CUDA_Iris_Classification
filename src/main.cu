@@ -46,8 +46,8 @@ void measureClassifierPerformance(const char* name,
 int main() {
     // data load
     IrisData data;
-    data.n_features = IrisData::FEATURE_DIM;
-    data.n_classes = IrisData::CLASS_COUNT;
+    data.n_features = 4;  // 
+    data.n_classes = 3;   // 
     
     if (!IrisDataLoader::loadData(data)) {
         return -1;
@@ -61,7 +61,7 @@ int main() {
     DataPreprocessor::splitData(data, train_data, test_data, 0.8f);
     
     // create model and train
-    NeuralNetwork model(IrisData::n_features, 8, IrisData::n_classes);
+    NeuralNetwork model(4, 8, 3);  // 
     model.train(train_data.features, train_data.labels, train_data.n_samples);
     
     // evaluate
