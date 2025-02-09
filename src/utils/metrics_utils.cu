@@ -6,6 +6,7 @@
 #include <string>
 #include <thrust/system/cuda/execution_policy.h>
 #include <iostream>
+#include <vector>
 
 namespace MetricsUtils {
 
@@ -19,37 +20,32 @@ struct CompareLabels {
 // Calculate accuracy by comparing predictions with true labels
 float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
     try {
-        // 1. Debug info
         std::cout << "Starting accuracy calculation..." << std::endl;
         std::cout << "Number of samples: " << n_samples << std::endl;
         
-        // 2. Create device vectors to manage memory automatically
-        thrust::device_vector<int> d_pred(predictions, predictions + n_samples);
-        thrust::device_vector<int> d_labels(labels, labels + n_samples);
+        // Host memory for labels
+        std::vector<int> h_labels(labels, labels + n_samples);
         
-        // 3. Get raw pointers for device vectors
-        const int* raw_pred = thrust::raw_pointer_cast(d_pred.data());
-        const int* raw_labels = thrust::raw_pointer_cast(d_labels.data());
+        // Device memory allocation and copy
+        thrust::device_vector<int> d_labels(h_labels.begin(), h_labels.end());
+        thrust::device_ptr<const int> d_pred(predictions);  // predictions는 이미 device memory
         
-        // 4. Synchronize and check for errors
+        // Synchronize before calculation
         CUDA_CHECK(cudaDeviceSynchronize());
         
-        // 5. Calculate accuracy
+        // Calculate accuracy
         int correct = thrust::transform_reduce(
             thrust::cuda::par,
             thrust::make_counting_iterator<int>(0),
             thrust::make_counting_iterator<int>(n_samples),
             [=] __host__ __device__ (int idx) -> int {
-                return raw_pred[idx] == raw_labels[idx] ? 1 : 0;
+                return d_pred[idx] == d_labels[idx] ? 1 : 0;
             },
             0,
             thrust::plus<int>()
         );
         
-        // 6. Final synchronization
         CUDA_CHECK(cudaDeviceSynchronize());
-        
-        // 7. Debug output
         std::cout << "Correct predictions: " << correct << "/" << n_samples << std::endl;
         
         return static_cast<float>(correct) / n_samples;
