@@ -22,42 +22,49 @@ bool IrisDataLoader::loadData(IrisData& data) {
         return false;
     }
     
-    data.n_samples = labels.size();
-    data.n_features = 4;
-    data.n_classes = 3;
+    int n_samples = labels.size();
+    data.n_samples = n_samples;
     
-    // Allocate device memory
-    if (cudaMalloc(&data.features, features.size() * sizeof(float)) != cudaSuccess) {
-        return false;
-    }
-    if (cudaMalloc(&data.labels, labels.size() * sizeof(int)) != cudaSuccess) {
-        cudaFree(data.features);
+    if (!allocateMemory(data, n_samples)) {
         return false;
     }
     
     // Copy data to device
-    if (cudaMemcpy(data.features, features.data(), 
-                   features.size() * sizeof(float), 
-                   cudaMemcpyHostToDevice) != cudaSuccess) {
-        cudaFree(data.features);
-        cudaFree(data.labels);
+    cudaError_t error;
+    error = cudaMemcpy(data.features, features.data(), 
+                      features.size() * sizeof(float), 
+                      cudaMemcpyHostToDevice);
+    if (error != cudaSuccess) {
+        freeMemory(data);
         return false;
     }
     
-    if (cudaMemcpy(data.labels, labels.data(), 
-                   labels.size() * sizeof(int), 
-                   cudaMemcpyHostToDevice) != cudaSuccess) {
-        cudaFree(data.features);
-        cudaFree(data.labels);
+    error = cudaMemcpy(data.labels, labels.data(), 
+                      labels.size() * sizeof(int), 
+                      cudaMemcpyHostToDevice);
+    if (error != cudaSuccess) {
+        freeMemory(data);
         return false;
     }
     
     return true;
 }
 
-void IrisDataLoader::allocateMemory(int n_samples) {
-    CUDA_CHECK(cudaMalloc(&data.features, n_samples * 4 * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&data.labels, n_samples * sizeof(int)));
+bool IrisDataLoader::allocateMemory(IrisData& data, int n_samples) {
+    cudaError_t error;
+    
+    error = cudaMalloc(&data.features, n_samples * 4 * sizeof(float));
+    if (error != cudaSuccess) {
+        return false;
+    }
+    
+    error = cudaMalloc(&data.labels, n_samples * sizeof(int));
+    if (error != cudaSuccess) {
+        if (data.features) cudaFree(data.features);
+        return false;
+    }
+    
+    return true;
 }
 
 void IrisDataLoader::freeMemory() {
