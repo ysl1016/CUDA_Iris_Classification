@@ -42,38 +42,23 @@ float calculateAccuracy(const int* predictions, const int* labels, int n_samples
                             cudaMemcpyHostToDevice));
         
         // 5. Create device pointers with verification
-        thrust::device_ptr<const int> d_pred;
-        thrust::device_ptr<const int> d_labels_ptr;
-        
-        try {
-            d_pred = thrust::device_pointer_cast(predictions);
-            d_labels_ptr = thrust::device_pointer_cast(d_labels);
-        } catch (const std::exception& e) {
-            cudaFree(d_labels);
-            throw std::runtime_error("Failed to create device pointers: " + 
-                                   std::string(e.what()));
-        }
+        thrust::device_ptr<const int> d_pred(predictions);
+        thrust::device_ptr<const int> d_labels_ptr(d_labels);
         
         // 6. Synchronize before calculation
         CUDA_CHECK(cudaDeviceSynchronize());
         
         // 7. Calculate accuracy with error checking
-        int correct;
-        try {
-            correct = thrust::transform_reduce(
-                thrust::cuda::par,
-                thrust::make_counting_iterator<int>(0),
-                thrust::make_counting_iterator<int>(n_samples),
-                [=] __device__ (int idx) {
-                    return d_pred[idx] == d_labels_ptr[idx] ? 1 : 0;
-                },
-                0,
-                thrust::plus<int>()
-            );
-        } catch (const std::exception& e) {
-            cudaFree(d_labels);
-            throw std::runtime_error("Transform reduce failed: " + std::string(e.what()));
-        }
+        int correct = thrust::transform_reduce(
+            thrust::cuda::par,
+            thrust::make_counting_iterator<int>(0),
+            thrust::make_counting_iterator<int>(n_samples),
+            [=] __host__ __device__ (int idx) -> int {
+                return d_pred[idx] == d_labels_ptr[idx] ? 1 : 0;
+            },
+            0,
+            thrust::plus<int>()
+        );
         
         // 8. Final error check and cleanup
         CUDA_CHECK(cudaGetLastError());
