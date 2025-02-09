@@ -23,10 +23,11 @@
 
 // Error checking macro
 #define CUDA_CHECK(call) do { \
-    cudaError_t err = call; \
-    if (err != cudaSuccess) { \
-        throw std::runtime_error(std::string("CUDA error: ") + \
-                               cudaGetErrorString(err)); \
+    cudaError_t error = call; \
+    if (error != cudaSuccess) { \
+        fprintf(stderr, "CUDA error at %s:%d: %s\n", \
+                __FILE__, __LINE__, cudaGetErrorString(error)); \
+        exit(EXIT_FAILURE); \
     } \
 } while(0)
 
@@ -35,12 +36,12 @@ struct IrisData {
     float* features;      // Input features
     int* labels;         // Class labels
     int n_samples;       // Number of samples
-    int n_features;      // Number of features
-    int n_classes;       // Number of classes
+    static const int n_features = 4;
+    static const int n_classes = 3;
     
     // Constructor
     IrisData() : features(nullptr), labels(nullptr), 
-                 n_samples(0), n_features(0), n_classes(0) {}
+                 n_samples(0) {}
 };
 
 // Performance metrics structure
