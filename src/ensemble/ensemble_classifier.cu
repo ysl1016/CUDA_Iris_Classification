@@ -151,27 +151,7 @@
         
         try {
             predict(features, predictions, n_samples);
-            
-            // Calculate accuracy using thrust
-            thrust::device_ptr<const int> d_pred_ptr(predictions);
-            thrust::device_ptr<const int> d_labels_ptr(labels);
-            
-            auto counting = thrust::make_counting_iterator<int>(0);
-            auto compare_op = [=] __host__ __device__ (int idx) -> int {
-                return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
-            };
-            
-            int correct = thrust::transform_reduce(
-                thrust::device,
-                counting,
-                counting + n_samples,
-                compare_op,
-                0,
-                thrust::plus<int>()
-            );
-            
-            CUDA_CHECK(cudaDeviceSynchronize());
-            float accuracy = static_cast<float>(correct) / n_samples;
+            float accuracy = MetricsUtils::calculateAccuracy(predictions, labels, n_samples);
             CUDA_CHECK(cudaFree(predictions));
             return accuracy;
         }
@@ -182,17 +162,25 @@
     }
 
     void EnsembleClassifier::updateWeights(const float* features, const int* labels, int n_samples) {
-        // Allocate host memory for accuracies
-        float* accuracies = new float[n_classifiers];
-        float total_accuracy = 0.0f;
+        // Allocate device memory for predictions
+        int *d_svm_pred, *d_nn_pred, *d_kmeans_pred;
+        CUDA_CHECK(cudaMalloc(&d_svm_pred, n_samples * sizeof(int)));
+        CUDA_CHECK(cudaMalloc(&d_nn_pred, n_samples * sizeof(int)));
+        CUDA_CHECK(cudaMalloc(&d_kmeans_pred, n_samples * sizeof(int)));
         
         try {
-            // Calculate accuracy for each classifier
-            accuracies[0] = svm.getAccuracy(features, labels, n_samples);
-            accuracies[1] = nn.getAccuracy(features, labels, n_samples);
-            accuracies[2] = kmeans.getAccuracy(features, labels, n_samples);
+            // Get predictions from each classifier
+            svm.predict(features, d_svm_pred, n_samples);
+            nn.predict(features, d_nn_pred, n_samples);
+            kmeans.predict(features, n_samples, d_kmeans_pred);
             
-            // Calculate total accuracy for normalization
+            // Calculate accuracies using MetricsUtils
+            float accuracies[n_classifiers];
+            accuracies[0] = MetricsUtils::calculateAccuracy(d_svm_pred, labels, n_samples);
+            accuracies[1] = MetricsUtils::calculateAccuracy(d_nn_pred, labels, n_samples);
+            accuracies[2] = MetricsUtils::calculateAccuracy(d_kmeans_pred, labels, n_samples);
+            
+            float total_accuracy = 0.0f;
             for (int i = 0; i < n_classifiers; i++) {
                 total_accuracy += accuracies[i];
             }
@@ -203,7 +191,6 @@
                     accuracies[i] /= total_accuracy;
                 }
             } else {
-                // If all classifiers perform poorly, use equal weights
                 for (int i = 0; i < n_classifiers; i++) {
                     accuracies[i] = 1.0f / n_classifiers;
                 }
@@ -212,12 +199,18 @@
             // Update weights on device
             CUDA_CHECK(cudaMemcpy(d_weights, accuracies, n_classifiers * sizeof(float), 
                                 cudaMemcpyHostToDevice));
-        } catch (const std::runtime_error& e) {
-            delete[] accuracies;
+                            
+            // Cleanup
+            CUDA_CHECK(cudaFree(d_svm_pred));
+            CUDA_CHECK(cudaFree(d_nn_pred));
+            CUDA_CHECK(cudaFree(d_kmeans_pred));
+        }
+        catch (const std::runtime_error& e) {
+            if (d_svm_pred) cudaFree(d_svm_pred);
+            if (d_nn_pred) cudaFree(d_nn_pred);
+            if (d_kmeans_pred) cudaFree(d_kmeans_pred);
             throw std::runtime_error("Weight update failed: " + std::string(e.what()));
         }
-        
-        delete[] accuracies;
     }
 
     bool EnsembleClassifier::init() {
