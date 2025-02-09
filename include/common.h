@@ -27,7 +27,7 @@
         cudaError_t error = call; \
         if (error != cudaSuccess) { \
             cudaGetLastError(); \
-            return false; \
+            throw std::runtime_error(cudaGetErrorString(error)); \
         } \
     } while(0)
 
