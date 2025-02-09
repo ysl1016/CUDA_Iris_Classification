@@ -3,7 +3,7 @@
 
 class SVMClassifier {
 public:
-    SVMClassifier();
+    SVMClassifier(float C = 1.0f, float gamma = 0.1f);
     ~SVMClassifier();
 
     void train(const float* features, const int* labels, int n_samples);
