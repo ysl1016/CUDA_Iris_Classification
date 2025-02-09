@@ -44,31 +44,41 @@ void measureClassifierPerformance(const char* name,
 }
 
 int main() {
-    // data load
+    cudaFree(0);
+    
     IrisData data;
-    data.n_features = 4;  // 
-    data.n_classes = 3;   // 
+    data.n_features = 4;
+    data.n_classes = 3;
     
     if (!IrisDataLoader::loadData(data)) {
+        std::cerr << "Failed to load data" << std::endl;
         return -1;
     }
     
-    // preprocessing
-    DataPreprocessor::standardizeFeatures(data);
-    
-    // split data
-    IrisData train_data, test_data;
-    DataPreprocessor::splitData(data, train_data, test_data, 0.8f);
-    
-    // create model and train
-    NeuralNetwork model(4, 8, 3);  // 
-    model.train(train_data.features, train_data.labels, train_data.n_samples);
-    
-    // evaluate
-    float accuracy = model.getAccuracy(
-        test_data.features, test_data.labels, test_data.n_samples
-    );
-    printf("Test accuracy: %.2f%%\n", accuracy * 100);
+    try {
+        
+        DataPreprocessor::standardizeFeatures(data);
+                
+        IrisData train_data, test_data;
+        DataPreprocessor::splitData(data, train_data, test_data, 0.8f);
+                
+        EnsembleClassifier ensemble;
+        if (!ensemble.init()) {
+            std::cerr << "Failed to initialize ensemble" << std::endl;
+            return -1;
+        }
+        
+        ensemble.train(train_data);
+                
+        float accuracy = ensemble.getAccuracy(
+            test_data.features, test_data.labels, test_data.n_samples
+        );
+        std::cout << "Test accuracy: " << accuracy * 100 << "%" << std::endl;
+        
+    } catch (const std::runtime_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return -1;
+    }
     
     return 0;
 }
