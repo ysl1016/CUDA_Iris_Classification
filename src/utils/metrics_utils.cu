@@ -19,17 +19,23 @@ struct CompareLabels {
 
 // Calculate accuracy by comparing predictions with true labels
 float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
-    // Create device vectors (자동 메모리 관리)
+    // Create device vectors
     thrust::device_vector<int> d_predictions(predictions, predictions + n_samples);
     thrust::device_vector<int> d_labels(labels, labels + n_samples);
     
-    // Count correct predictions using zip_iterator
+    // Define comparison functor with explicit host/device attribute
+    struct CompareElements {
+        __host__ __device__
+        int operator()(const thrust::tuple<int, int>& t) const {
+            return thrust::get<0>(t) == thrust::get<1>(t) ? 1 : 0;
+        }
+    };
+    
+    // Count correct predictions using zip_iterator and the functor
     int correct = thrust::transform_reduce(
         thrust::make_zip_iterator(thrust::make_tuple(d_predictions.begin(), d_labels.begin())),
         thrust::make_zip_iterator(thrust::make_tuple(d_predictions.end(), d_labels.end())),
-        [] __device__ (const thrust::tuple<int, int>& t) {
-            return thrust::get<0>(t) == thrust::get<1>(t) ? 1 : 0;
-        },
+        CompareElements(),
         0,
         thrust::plus<int>()
     );
