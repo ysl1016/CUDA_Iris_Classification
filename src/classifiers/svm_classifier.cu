@@ -42,6 +42,21 @@ __global__ void predictKernel(const float* kernel_matrix,
     }
 }
 
+SVMClassifier::SVMClassifier(float C, float gamma) : C(C), gamma(gamma) {
+    d_kernel_matrix = nullptr;
+    d_alpha = nullptr;
+    d_support_vectors = nullptr;
+    d_support_vector_labels = nullptr;
+    n_support_vectors = 0;
+}
+
+SVMClassifier::~SVMClassifier() {
+    if (d_kernel_matrix) cudaFree(d_kernel_matrix);
+    if (d_alpha) cudaFree(d_alpha);
+    if (d_support_vectors) cudaFree(d_support_vectors);
+    if (d_support_vector_labels) cudaFree(d_support_vector_labels);
+}
+
 void SVMClassifier::train(const IrisData& data) {
     // Compute kernel matrix
     computeKernelMatrix(data.features, data.n_samples);
