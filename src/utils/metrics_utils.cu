@@ -18,6 +18,8 @@ struct CompareLabels {
 // Calculate accuracy by comparing predictions with true labels
 float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
     try {
+        CUDA_CHECK(cudaDeviceSynchronize());  // 시작 시 동기화
+        
         thrust::device_ptr<const int> d_pred(predictions);
         thrust::device_ptr<const int> d_labels(labels);
         
@@ -32,7 +34,9 @@ float calculateAccuracy(const int* predictions, const int* labels, int n_samples
             thrust::plus<int>()
         );
         
-        CUDA_CHECK(cudaDeviceSynchronize());
+        CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());  // 결과 반환 전 동기화
+        
         return static_cast<float>(correct) / n_samples;
     } catch (const std::runtime_error& e) {
         throw std::runtime_error("Accuracy calculation failed: " + std::string(e.what()));
