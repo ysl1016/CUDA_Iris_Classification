@@ -43,6 +43,7 @@ bool IrisDataLoader::loadData(IrisData& data) {
 bool IrisDataLoader::allocateMemory(IrisData& data, int n_samples) {
     cudaError_t error;
     
+    data.n_features = N_FEATURES;
     error = cudaMalloc(&data.features, n_samples * N_FEATURES * sizeof(float));
     if (error != cudaSuccess) {
         return false;
