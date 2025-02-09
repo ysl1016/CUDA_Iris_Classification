@@ -243,12 +243,12 @@ float KMeansClassifier::accuracy(const int* predictions, const int* labels, int 
     return static_cast<float>(correct) / n_samples;
 }
 
-KMeansClassifier::~KMeansClassifier() {
-    if (d_centroids) CUDA_CHECK(cudaFree(d_centroids));
-    if (d_cluster_sizes) CUDA_CHECK(cudaFree(d_cluster_sizes));
-    if (d_new_centroids) CUDA_CHECK(cudaFree(d_new_centroids));
-    if (d_cluster_to_class_map) CUDA_CHECK(cudaFree(d_cluster_to_class_map));
-    if (d_cluster_labels) CUDA_CHECK(cudaFree(d_cluster_labels));
+KMeansClassifier::~KMeansClassifier() noexcept {
+    if (d_centroids) cudaFree(d_centroids);
+    if (d_cluster_sizes) cudaFree(d_cluster_sizes);
+    if (d_new_centroids) cudaFree(d_new_centroids);
+    if (d_cluster_to_class_map) cudaFree(d_cluster_to_class_map);
+    if (d_cluster_labels) cudaFree(d_cluster_labels);
 }
 
 void KMeansClassifier::initializeCentroids(const float* features, int n_samples) {
