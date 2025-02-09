@@ -223,18 +223,6 @@ void DataPreprocessor::calculateMeanAndStd(const float* data, int n_samples, int
         thrust::device_ptr<const float> d_feature(data + f);
         float feature_mean = d_mean[f];
         
-        // Create a functor instead of lambda
-        struct VarianceOp {
-            float mean;
-            __host__ __device__
-            VarianceOp(float m) : mean(m) {}
-            __host__ __device__
-            float operator()(float x) const {
-                float diff = x - mean;
-                return diff * diff;
-            }
-        };
-        
         float variance = thrust::transform_reduce(
             thrust::device,
             d_feature,
