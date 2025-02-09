@@ -13,7 +13,7 @@
     // Add constant for max epochs
     #define MAX_EPOCHS 100
 
-    EnsembleClassifier::EnsembleClassifier() : nn(4, 8, 3), kmeans(3) {
+    EnsembleClassifier::EnsembleClassifier() : nn(N_FEATURES, 8, N_CLASSES), kmeans(N_CLASSES) {
         CUDA_CHECK(cudaMalloc(&d_weights, n_classifiers * sizeof(float)));
         CUDA_CHECK(cudaMalloc(&d_predictions, MAX_SAMPLES * n_classifiers * sizeof(int)));
     }
