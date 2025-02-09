@@ -18,24 +18,36 @@ struct CompareLabels {
 // Calculate accuracy by comparing predictions with true labels
 float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
     try {
-        CUDA_CHECK(cudaDeviceSynchronize());  // 시작 시 동기화
+        // 1. allocate device memory for labels
+        int* d_labels;
+        CUDA_CHECK(cudaMalloc(&d_labels, n_samples * sizeof(int)));
+        CUDA_CHECK(cudaMemcpy(d_labels, labels, n_samples * sizeof(int), cudaMemcpyHostToDevice));
         
+        // 2. device synchronization
+        CUDA_CHECK(cudaDeviceSynchronize());
+        
+        // 3. create device pointers
         thrust::device_ptr<const int> d_pred(predictions);
-        thrust::device_ptr<const int> d_labels(labels);
+        thrust::device_ptr<const int> d_labels_ptr(d_labels);
         
+        // 4. accuracy calculation
         int correct = thrust::transform_reduce(
             thrust::cuda::par,
             thrust::make_counting_iterator<int>(0),
             thrust::make_counting_iterator<int>(n_samples),
-            [=] __host__ __device__ (int idx) -> int {
-                return d_pred[idx] == d_labels[idx] ? 1 : 0;
+            [=] __device__ (int idx) -> int {
+                return d_pred[idx] == d_labels_ptr[idx] ? 1 : 0;
             },
             0,
             thrust::plus<int>()
         );
         
+        // 5. synchronization and error check
         CUDA_CHECK(cudaGetLastError());
-        CUDA_CHECK(cudaDeviceSynchronize());  // 결과 반환 전 동기화
+        CUDA_CHECK(cudaDeviceSynchronize());
+        
+        // 6. memory cleanup
+        CUDA_CHECK(cudaFree(d_labels));
         
         return static_cast<float>(correct) / n_samples;
     } catch (const std::runtime_error& e) {
