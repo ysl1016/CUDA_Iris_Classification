@@ -158,15 +158,16 @@
             
             int correct = thrust::transform_reduce(
                 thrust::device,
-                thrust::make_counting_iterator(0),
-                thrust::make_counting_iterator(n_samples),
-                [=] __device__ (int idx) -> int {
+                thrust::make_counting_iterator<int>(0),
+                thrust::make_counting_iterator<int>(n_samples),
+                [=] __device__ (int idx) {
                     return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
                 },
                 0,
                 thrust::plus<int>()
             );
             
+            CUDA_CHECK(cudaDeviceSynchronize());
             float accuracy = static_cast<float>(correct) / n_samples;
             CUDA_CHECK(cudaFree(predictions));
             return accuracy;
