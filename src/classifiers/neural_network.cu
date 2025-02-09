@@ -9,6 +9,7 @@
 #include <thrust/device_ptr.h>
 #include <curand_kernel.h>
 #include <time.h>
+#include "utils/metrics_utils.h"
 
 // Constants
 #define LEARNING_RATE 0.01f
