@@ -27,7 +27,7 @@
         cudaError_t error = call; \
         if (error != cudaSuccess) { \
             cudaGetLastError(); \
-            return; \
+            return false; \
         } \
     } while(0)
 
@@ -36,12 +36,12 @@ struct IrisData {
     float* features;      // Input features
     int* labels;         // Class labels
     int n_samples;       // Number of samples
-    static const int n_features = 4;
-    static const int n_classes = 3;
+    int n_features;      // 
+    int n_classes;       // 
     
     // Constructor
     IrisData() : features(nullptr), labels(nullptr), 
-                 n_samples(0) {}
+                 n_samples(0), n_features(N_FEATURES), n_classes(N_CLASSES) {}
 };
 
 // Performance metrics structure
