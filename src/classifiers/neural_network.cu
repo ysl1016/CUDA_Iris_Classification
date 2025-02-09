@@ -89,6 +89,15 @@ __global__ void computeGradientsKernel(
     }
 }
 
+__global__ void initializeWeightsKernel(float* weights, int size, float scale, unsigned int seed) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        curandState state;
+        curand_init(seed + idx, 0, 0, &state);
+        weights[idx] = scale * (2.0f * curand_uniform(&state) - 1.0f);
+    }
+}
+
 void NeuralNetwork::forwardPass(const float* features, int n_samples) {
     dim3 block_size(BLOCK_SIZE);
     dim3 grid_size((n_samples * output_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
@@ -159,59 +168,32 @@ void NeuralNetwork::predict(const float* features, int* predictions, int n_sampl
 
 void NeuralNetwork::initializeParameters() {
     // Allocations
-    size_t w1_size = input_size * hidden_size * sizeof(float);
-    size_t w2_size = hidden_size * output_size * sizeof(float);
-    size_t b1_size = hidden_size * sizeof(float);
-    size_t b2_size = output_size * sizeof(float);
-    size_t h_size = hidden_size * sizeof(float);
-    size_t output_size_bytes = output_size * sizeof(float);
+    size_t w1_size = input_size * hidden_size;
+    size_t w2_size = hidden_size * output_size;
     
-    CUDA_CHECK(cudaMalloc(&d_W1, w1_size));
-    CUDA_CHECK(cudaMalloc(&d_W2, w2_size));
-    CUDA_CHECK(cudaMalloc(&d_b1, b1_size));
-    CUDA_CHECK(cudaMalloc(&d_b2, b2_size));
-    CUDA_CHECK(cudaMalloc(&d_h, h_size));
-    CUDA_CHECK(cudaMalloc(&d_output, output_size_bytes));
+    CUDA_CHECK(cudaMalloc(&d_W1, w1_size * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_W2, w2_size * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_b1, hidden_size * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_b2, output_size * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_h, hidden_size * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_output, output_size * sizeof(float)));
     
     // Xavier initialization
     float w1_scale = sqrt(2.0f / input_size);
     float w2_scale = sqrt(2.0f / hidden_size);
-    
-    thrust::device_ptr<float> w1_ptr(d_W1);
-    thrust::device_ptr<float> w2_ptr(d_W2);
-    thrust::device_ptr<float> b1_ptr(d_b1);
-    thrust::device_ptr<float> b2_ptr(d_b2);
-    
     unsigned int seed = static_cast<unsigned int>(time(nullptr));
     
-    // Initialize weights using thrust::transform
-    thrust::transform(
-        thrust::device,
-        thrust::make_counting_iterator(0),
-        thrust::make_counting_iterator(input_size * hidden_size),
-        w1_ptr,
-        [w1_scale, seed] __device__ (int idx) {
-            curandState state;
-            curand_init(seed + idx, 0, 0, &state);
-            return w1_scale * (2.0f * curand_uniform(&state) - 1.0f);
-        }
-    );
+    dim3 block_size(BLOCK_SIZE);
+    dim3 grid_size1((w1_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
+    dim3 grid_size2((w2_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
     
-    thrust::transform(
-        thrust::device,
-        thrust::make_counting_iterator(0),
-        thrust::make_counting_iterator(hidden_size * output_size),
-        w2_ptr,
-        [w2_scale, seed] __device__ (int idx) {
-            curandState state;
-            curand_init(seed + idx, 0, 0, &state);
-            return w2_scale * (2.0f * curand_uniform(&state) - 1.0f);
-        }
-    );
+    // Initialize weights
+    initializeWeightsKernel<<<grid_size1, block_size>>>(d_W1, w1_size, w1_scale, seed);
+    initializeWeightsKernel<<<grid_size2, block_size>>>(d_W2, w2_size, w2_scale, seed);
     
     // Initialize biases to zero
-    thrust::fill(thrust::device, b1_ptr, b1_ptr + hidden_size, 0.0f);
-    thrust::fill(thrust::device, b2_ptr, b2_ptr + output_size, 0.0f);
+    CUDA_CHECK(cudaMemset(d_b1, 0, hidden_size * sizeof(float)));
+    CUDA_CHECK(cudaMemset(d_b2, 0, output_size * sizeof(float)));
 }
 
 float NeuralNetwork::getAccuracy(const float* features, const int* labels, int n_samples) {
