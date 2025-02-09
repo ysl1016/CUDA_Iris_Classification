@@ -92,22 +92,26 @@ void NeuralNetwork::backwardPass(const float* input, const int* labels, int n_sa
     dim3 block_size(BLOCK_SIZE);
     dim3 grid_size((n_samples * output_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
     
-    backwardPassKernel<<<grid_size, block_size>>>(
-        d_weights,
+    computeGradientsKernel<<<grid_size, block_size>>>(
+        d_W1,
+        d_W2,
         d_output,
         input,
         labels,
         learning_rate,
         n_samples,
         input_size,
+        hidden_size,
         output_size
     );
+    
+    CUDA_CHECK(cudaGetLastError());
 }
 
-void NeuralNetwork::train(const IrisData& data, int epochs) {
-    for (int epoch = 0; epoch < epochs; epoch++) {
-        forwardPass(data.features, data.n_samples);
-        backwardPass(data.features, data.labels, data.n_samples);
+void NeuralNetwork::train(const float* features, const int* labels, int n_samples, int epochs) {
+    for (int epoch = 0; epoch < epochs; ++epoch) {
+        forwardPass(features, n_samples);
+        backwardPass(features, labels, n_samples);
     }
 }
 
@@ -200,4 +204,17 @@ float NeuralNetwork::getAccuracy(const float* features, const int* labels, int n
     
     CUDA_CHECK(cudaFree(predictions));
     return static_cast<float>(correct) / n_samples;
+}
+
+NeuralNetwork::~NeuralNetwork() {
+    cleanup();
+}
+
+void NeuralNetwork::cleanup() {
+    if (d_W1) cudaFree(d_W1);
+    if (d_W2) cudaFree(d_W2);
+    if (d_b1) cudaFree(d_b1);
+    if (d_b2) cudaFree(d_b2);
+    if (d_h) cudaFree(d_h);
+    if (d_output) cudaFree(d_output);
 }
