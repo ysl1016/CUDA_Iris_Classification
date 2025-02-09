@@ -3,10 +3,10 @@
 
 class SVMClassifier {
 public:
-    SVMClassifier(float C = 1.0f, float gamma = 0.1f);
+    SVMClassifier();
     ~SVMClassifier();
 
-    void train(const IrisData& data);
+    void train(const float* features, const int* labels, int n_samples);
     void predict(const float* features, int* predictions, int n_samples);
     float getAccuracy(const float* features, const int* labels, int n_samples);
 
