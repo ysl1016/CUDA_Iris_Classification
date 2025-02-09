@@ -23,31 +23,31 @@ float calculateAccuracy(const int* predictions, const int* labels, int n_samples
         std::cout << "Starting accuracy calculation..." << std::endl;
         std::cout << "Number of samples: " << n_samples << std::endl;
         
-        // Host memory for labels
-        std::vector<int> h_labels(labels, labels + n_samples);
-        
         // Device memory allocation and copy
-        thrust::device_vector<int> d_labels(h_labels.begin(), h_labels.end());
-        thrust::device_ptr<const int> d_pred(predictions);  // predictions는 이미 device memory
+        int* d_labels;
+        CUDA_CHECK(cudaMalloc(&d_labels, n_samples * sizeof(int)));
+        CUDA_CHECK(cudaMemcpy(d_labels, labels, n_samples * sizeof(int), 
+                            cudaMemcpyHostToDevice));
         
         // Synchronize before calculation
         CUDA_CHECK(cudaDeviceSynchronize());
         
-        // Calculate accuracy
+        // Calculate accuracy using raw pointers
         int correct = thrust::transform_reduce(
             thrust::cuda::par,
             thrust::make_counting_iterator<int>(0),
             thrust::make_counting_iterator<int>(n_samples),
-            [=] __host__ __device__ (int idx) -> int {
-                return d_pred[idx] == d_labels[idx] ? 1 : 0;
+            [=] __device__ (int idx) -> int {
+                return predictions[idx] == d_labels[idx] ? 1 : 0;
             },
             0,
             thrust::plus<int>()
         );
         
         CUDA_CHECK(cudaDeviceSynchronize());
-        std::cout << "Correct predictions: " << correct << "/" << n_samples << std::endl;
+        CUDA_CHECK(cudaFree(d_labels));
         
+        std::cout << "Correct predictions: " << correct << "/" << n_samples << std::endl;
         return static_cast<float>(correct) / n_samples;
     } catch (const std::runtime_error& e) {
         std::cerr << "Detailed error in accuracy calculation: " << e.what() << std::endl;
