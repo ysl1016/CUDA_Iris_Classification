@@ -23,49 +23,33 @@ float calculateAccuracy(const int* predictions, const int* labels, int n_samples
         std::cout << "Starting accuracy calculation..." << std::endl;
         std::cout << "Number of samples: " << n_samples << std::endl;
         
-        // 2. Check CUDA device status
-        cudaError_t error = cudaGetLastError();
-        if (error != cudaSuccess) {
-            throw std::runtime_error("CUDA error before calculation: " + 
-                                   std::string(cudaGetErrorString(error)));
-        }
+        // 2. Create device vectors to manage memory automatically
+        thrust::device_vector<int> d_pred(predictions, predictions + n_samples);
+        thrust::device_vector<int> d_labels(labels, labels + n_samples);
         
-        // 3. Verify input pointers
-        if (predictions == nullptr || labels == nullptr) {
-            throw std::runtime_error("Null pointer input");
-        }
+        // 3. Get raw pointers for device vectors
+        const int* raw_pred = thrust::raw_pointer_cast(d_pred.data());
+        const int* raw_labels = thrust::raw_pointer_cast(d_labels.data());
         
-        // 4. Allocate and copy labels to device
-        int* d_labels;
-        CUDA_CHECK(cudaMalloc(&d_labels, n_samples * sizeof(int)));
-        CUDA_CHECK(cudaMemcpy(d_labels, labels, n_samples * sizeof(int), 
-                            cudaMemcpyHostToDevice));
-        
-        // 5. Create device pointers with verification
-        thrust::device_ptr<const int> d_pred(predictions);
-        thrust::device_ptr<const int> d_labels_ptr(d_labels);
-        
-        // 6. Synchronize before calculation
+        // 4. Synchronize and check for errors
         CUDA_CHECK(cudaDeviceSynchronize());
         
-        // 7. Calculate accuracy with error checking
+        // 5. Calculate accuracy
         int correct = thrust::transform_reduce(
             thrust::cuda::par,
             thrust::make_counting_iterator<int>(0),
             thrust::make_counting_iterator<int>(n_samples),
             [=] __host__ __device__ (int idx) -> int {
-                return d_pred[idx] == d_labels_ptr[idx] ? 1 : 0;
+                return raw_pred[idx] == raw_labels[idx] ? 1 : 0;
             },
             0,
             thrust::plus<int>()
         );
         
-        // 8. Final error check and cleanup
-        CUDA_CHECK(cudaGetLastError());
+        // 6. Final synchronization
         CUDA_CHECK(cudaDeviceSynchronize());
-        CUDA_CHECK(cudaFree(d_labels));
         
-        // 9. Debug info
+        // 7. Debug output
         std::cout << "Correct predictions: " << correct << "/" << n_samples << std::endl;
         
         return static_cast<float>(correct) / n_samples;
