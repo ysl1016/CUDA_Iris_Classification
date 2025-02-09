@@ -1,6 +1,8 @@
 #include "data/iris_data_loader.h"
 #include <fstream>
 #include <sstream>
+#include <cstdlib>
+#include <iostream>
 
 bool IrisDataLoader::loadData(IrisData& data) {
     std::vector<float> features;
@@ -67,23 +69,51 @@ void IrisDataLoader::freeMemory(IrisData& data) {
 }
 
 bool IrisDataLoader::loadFromFile(std::vector<float>& features, std::vector<int>& labels) {
-    try {
-        const int n_samples = 150;  
-        const int n_features = 4;   
-        
-        features.resize(n_samples * n_features);
-        labels.resize(n_samples);
-        
-        for (int i = 0; i < n_samples; ++i) {
-            for (int j = 0; j < n_features; ++j) {
-                features[i * n_features + j] = static_cast<float>(rand()) / RAND_MAX;
-            }
-            labels[i] = i / 50; 
-        }
-        
-        return true;
-    }
-    catch (const std::exception& e) {
+    const char* url = "https://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data";
+    
+    std::string command = "wget -O data/iris.data " + std::string(url);
+    int result = system(command.c_str());
+    
+    if (result != 0) {
+        std::cerr << "Failed to download iris dataset" << std::endl;
         return false;
     }
+    
+    std::ifstream file("data/iris.data");
+    if (!file.is_open()) {
+        std::cerr << "Could not open iris.data" << std::endl;
+        return false;
+    }
+    
+    features.clear();
+    labels.clear();
+    
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        
+        std::stringstream ss(line);
+        std::string value;
+        std::vector<float> row;
+        
+        // Read 4 feature values
+        for (int i = 0; i < 4; i++) {
+            std::getline(ss, value, ',');
+            row.push_back(std::stof(value));
+        }
+        
+        // Read class label
+        std::getline(ss, value);
+        int label;
+        if (value == "Iris-setosa") label = 0;
+        else if (value == "Iris-versicolor") label = 1;
+        else if (value == "Iris-virginica") label = 2;
+        else continue;
+        
+        features.insert(features.end(), row.begin(), row.end());
+        labels.push_back(label);
+    }
+    
+    file.close();
+    return !features.empty();
 }
