@@ -21,16 +21,17 @@ float calculateAccuracy(const int* predictions, const int* labels, int n_samples
         thrust::device_ptr<const int> d_labels(labels);
         
         int correct = thrust::transform_reduce(
-            thrust::make_zip_iterator(thrust::make_tuple(d_pred, d_labels)),
-            thrust::make_zip_iterator(thrust::make_tuple(d_pred + n_samples, d_labels + n_samples)),
-            CompareLabels(),
+            thrust::device,
+            thrust::make_counting_iterator<int>(0),
+            thrust::make_counting_iterator<int>(n_samples),
+            [=] __host__ __device__ (int idx) -> int {
+                return d_pred[idx] == d_labels[idx] ? 1 : 0;
+            },
             0,
             thrust::plus<int>()
         );
         
-        CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
-        
         return static_cast<float>(correct) / n_samples;
     } catch (const std::runtime_error& e) {
         throw std::runtime_error("Accuracy calculation failed: " + std::string(e.what()));
