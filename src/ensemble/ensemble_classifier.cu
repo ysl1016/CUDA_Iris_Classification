@@ -2,7 +2,14 @@
 #include "utils/metrics_utils.h"
 #include <thrust/execution_policy.h>
 #include <chrono>
-
+/*
+Reasons why GPU implementation can enhance accuracy:
+1. Parallel processing enables more training iterations
+2. Batch processing provides more stable learning
+3. High-precision floating-point operations
+4. Ability to handle larger models and datasets efficiently
+5. Consistent results through deterministic operations
+*/
 // Add constant for max epochs
 #define MAX_EPOCHS 100
 
