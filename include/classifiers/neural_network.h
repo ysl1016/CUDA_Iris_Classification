@@ -3,7 +3,12 @@
 
 class NeuralNetwork {
 public:
-    NeuralNetwork(int input_size, int hidden_size, int output_size);
+    NeuralNetwork(int input_size, int hidden_size, int output_size)
+        : input_size(input_size), hidden_size(hidden_size), output_size(output_size),
+          learning_rate(LEARNING_RATE) {
+        initializeParameters();
+    }
+    
     ~NeuralNetwork();
     
     void train(const float* features, const int* labels, int n_samples, int epochs = MAX_EPOCHS);
@@ -11,14 +16,20 @@ public:
     float getAccuracy(const float* features, const int* labels, int n_samples);
 
 private:
-    void initializeParameters();
-    void forwardPass(const float* features, int n_samples);
-    
     int input_size;
     int hidden_size;
     int output_size;
+    float learning_rate;
     
-    float *d_W1, *d_W2;
-    float *d_b1, *d_b2;
-    float *d_h, *d_output;
+    float* d_W1;
+    float* d_W2;
+    float* d_b1;
+    float* d_b2;
+    float* d_h;
+    float* d_output;
+    
+    void initializeParameters();
+    void forwardPass(const float* input, int n_samples);
+    void backwardPass(const float* input, const int* labels, int n_samples);
+    void cleanup();
 };
