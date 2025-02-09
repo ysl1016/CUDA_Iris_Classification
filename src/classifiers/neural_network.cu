@@ -61,6 +61,34 @@ __global__ void backwardPassKernel(float* d_weights,
     }
 }
 
+__global__ void computeGradientsKernel(
+    float* W1, float* W2,
+    float* output,
+    const float* input,
+    const int* labels,
+    float learning_rate,
+    int n_samples,
+    int input_size,
+    int hidden_size,
+    int output_size
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= n_samples * output_size) return;
+    
+    int sample_idx = idx / output_size;
+    int class_idx = idx % output_size;
+    
+    // Compute gradient for output layer
+    float target = (labels[sample_idx] == class_idx) ? 1.0f : 0.0f;
+    float error = output[idx] - target;
+    
+    // Update weights (simplified backpropagation)
+    for (int i = 0; i < hidden_size; i++) {
+        int w2_idx = i * output_size + class_idx;
+        W2[w2_idx] -= learning_rate * error * input[sample_idx * input_size + i];
+    }
+}
+
 void NeuralNetwork::forwardPass(const float* features, int n_samples) {
     dim3 block_size(BLOCK_SIZE);
     dim3 grid_size((n_samples * output_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
@@ -154,29 +182,34 @@ void NeuralNetwork::initializeParameters() {
     thrust::device_ptr<float> b1_ptr(d_b1);
     thrust::device_ptr<float> b2_ptr(d_b2);
     
-    // CUDA 난수 생성을 위한 커널
-    auto init_weights = [] __device__ (float scale, unsigned int seed) {
-        curandState state;
-        curand_init(seed, threadIdx.x, 0, &state);
-        return scale * (2.0f * curand_uniform(&state) - 1.0f);
-    };
-    
     unsigned int seed = static_cast<unsigned int>(time(nullptr));
     
-    thrust::transform(thrust::device,
+    // Initialize weights using thrust::transform
+    thrust::transform(
+        thrust::device,
         thrust::make_counting_iterator(0),
         thrust::make_counting_iterator(input_size * hidden_size),
         w1_ptr,
-        [=] __device__ (int idx) { return init_weights(w1_scale, seed + idx); }
+        [w1_scale, seed] __device__ (int idx) {
+            curandState state;
+            curand_init(seed + idx, 0, 0, &state);
+            return w1_scale * (2.0f * curand_uniform(&state) - 1.0f);
+        }
     );
     
-    thrust::transform(thrust::device,
+    thrust::transform(
+        thrust::device,
         thrust::make_counting_iterator(0),
         thrust::make_counting_iterator(hidden_size * output_size),
         w2_ptr,
-        [=] __device__ (int idx) { return init_weights(w2_scale, seed + idx); }
+        [w2_scale, seed] __device__ (int idx) {
+            curandState state;
+            curand_init(seed + idx, 0, 0, &state);
+            return w2_scale * (2.0f * curand_uniform(&state) - 1.0f);
+        }
     );
     
+    // Initialize biases to zero
     thrust::fill(thrust::device, b1_ptr, b1_ptr + hidden_size, 0.0f);
     thrust::fill(thrust::device, b2_ptr, b2_ptr + output_size, 0.0f);
 }
