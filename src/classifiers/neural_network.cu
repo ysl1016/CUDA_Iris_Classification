@@ -191,7 +191,7 @@ float NeuralNetwork::getAccuracy(const float* features, const int* labels, int n
         thrust::device,
         thrust::make_counting_iterator(0),
         thrust::make_counting_iterator(n_samples),
-        [=] __device__ (int idx) {
+        [=] __device__ -> int {
             return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
         },
         0,
