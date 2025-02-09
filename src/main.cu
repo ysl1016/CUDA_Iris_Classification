@@ -44,18 +44,29 @@ void measureClassifierPerformance(const char* name,
 }
 
 int main() {
-    cudaFree(0);
-    
-    IrisData data;
-    data.n_features = 4;
-    data.n_classes = 3;
-    
-    if (!IrisDataLoader::loadData(data)) {
-        std::cerr << "Failed to load data" << std::endl;
+    // CUDA initialization
+    int deviceCount;
+    cudaGetDeviceCount(&deviceCount);
+    if (deviceCount == 0) {
+        std::cerr << "No CUDA devices found!" << std::endl;
         return -1;
     }
     
+    // Select the first device
+    cudaSetDevice(0);
+    
+    // Initialize device memory
+    cudaFree(0);
+    
     try {
+        IrisData data;
+        data.n_features = 4;
+        data.n_classes = 3;
+        
+        if (!IrisDataLoader::loadData(data)) {
+            std::cerr << "Failed to load data" << std::endl;
+            return -1;
+        }
         
         DataPreprocessor::standardizeFeatures(data);
                 
