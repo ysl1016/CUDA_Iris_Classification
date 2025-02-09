@@ -16,6 +16,7 @@
 #define MAX_EPOCHS 100
 #define LEARNING_RATE 0.01f
 #define CONVERGENCE_THRESHOLD 1e-6f
+#define MAX_SAMPLES 150
 
 // Iris dataset constants
 #define N_FEATURES 4
