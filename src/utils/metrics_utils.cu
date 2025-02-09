@@ -23,23 +23,30 @@ float calculateAccuracy(const int* predictions, const int* labels, int n_samples
         std::cout << "Starting accuracy calculation..." << std::endl;
         std::cout << "Number of samples: " << n_samples << std::endl;
         
-        // Create device vector for labels
-        thrust::device_vector<int> d_labels(labels, labels + n_samples);
+        // Allocate device memory for labels
+        int* d_labels;
+        CUDA_CHECK(cudaMalloc(&d_labels, n_samples * sizeof(int)));
+        CUDA_CHECK(cudaMemcpy(d_labels, labels, n_samples * sizeof(int), 
+                             cudaMemcpyHostToDevice));
         
-        // Create device pointer for predictions (already on device)
+        // Create device pointer for predictions and labels
         thrust::device_ptr<const int> d_pred(predictions);
+        thrust::device_ptr<const int> d_labels_ptr(d_labels);
         
-        // Calculate accuracy
+        // Calculate accuracy using raw pointers
         int correct = thrust::transform_reduce(
             thrust::cuda::par,
             thrust::make_counting_iterator<int>(0),
             thrust::make_counting_iterator<int>(n_samples),
-            [d_pred, d_labels] __device__ (int idx) {
-                return d_pred[idx] == d_labels[idx] ? 1 : 0;
+            [=] __host__ __device__ (int idx) -> int {
+                return d_pred[idx] == d_labels_ptr[idx] ? 1 : 0;
             },
             0,
             thrust::plus<int>()
         );
+        
+        // Cleanup
+        CUDA_CHECK(cudaFree(d_labels));
         
         std::cout << "Correct predictions: " << correct << "/" << n_samples << std::endl;
         return static_cast<float>(correct) / n_samples;
