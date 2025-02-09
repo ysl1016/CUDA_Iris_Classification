@@ -146,17 +146,22 @@
     }
 
     float EnsembleClassifier::getAccuracy(const float* features, const int* labels, int n_samples) {
-        int* predictions;
-        CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
+        // Allocate device memory for predictions
+        thrust::device_vector<int> d_predictions(n_samples);
         
         try {
-            predict(features, predictions, n_samples);
-            float accuracy = MetricsUtils::calculateAccuracy(predictions, labels, n_samples);
-            CUDA_CHECK(cudaFree(predictions));
+            // Get predictions
+            predict(features, thrust::raw_pointer_cast(d_predictions.data()), n_samples);
+            
+            // Calculate accuracy
+            float accuracy = MetricsUtils::calculateAccuracy(
+                thrust::raw_pointer_cast(d_predictions.data()),
+                labels,
+                n_samples
+            );
+            
             return accuracy;
-        }
-        catch (const std::runtime_error& e) {
-            if (predictions) cudaFree(predictions);
+        } catch (const std::runtime_error& e) {
             throw std::runtime_error("Accuracy calculation failed: " + std::string(e.what()));
         }
     }
