@@ -9,6 +9,7 @@ public:
     void train(const IrisData& data, int epochs);
     void predict(const float* features, int* predictions, int n_samples);
     float getAccuracy(const float* features, const int* labels, int n_samples);
+    void initializeParameters();
 
 private:
     // Network parameters
@@ -24,7 +25,6 @@ private:
     float* d_weights;
     float learning_rate = 0.01f;
     
-    void initializeParameters();
     void forwardPass(const float* features, int n_samples);
     void backwardPass(const float* features, const int* labels, int n_samples);
 };
