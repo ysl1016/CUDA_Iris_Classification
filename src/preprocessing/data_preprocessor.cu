@@ -176,3 +176,65 @@ void DataPreprocessor::augmentData(IrisData& data, float noise_std) {
                      thrust::device_pointer_cast(data.features),
                      thrust::plus<float>());
 }
+
+void DataPreprocessor::splitData(const IrisData& data, IrisData& train, IrisData& test, float train_ratio) {
+    int n_train = static_cast<int>(data.n_samples * train_ratio);
+    int n_test = data.n_samples - n_train;
+    
+    // Allocate memory for train and test sets
+    CUDA_CHECK(cudaMalloc(&train.features, n_train * 4 * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&train.labels, n_train * sizeof(int)));
+    CUDA_CHECK(cudaMalloc(&test.features, n_test * 4 * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&test.labels, n_test * sizeof(int)));
+    
+    // Copy data
+    CUDA_CHECK(cudaMemcpy(train.features, data.features, n_train * 4 * sizeof(float), 
+                         cudaMemcpyDeviceToDevice));
+    CUDA_CHECK(cudaMemcpy(train.labels, data.labels, n_train * sizeof(int), 
+                         cudaMemcpyDeviceToDevice));
+    CUDA_CHECK(cudaMemcpy(test.features, data.features + n_train * 4, 
+                         n_test * 4 * sizeof(float), cudaMemcpyDeviceToDevice));
+    CUDA_CHECK(cudaMemcpy(test.labels, data.labels + n_train, 
+                         n_test * sizeof(int), cudaMemcpyDeviceToDevice));
+    
+    train.n_samples = n_train;
+    test.n_samples = n_test;
+}
+
+void DataPreprocessor::calculateMeanAndStd(const float* data, int n_samples, int n_features,
+                                         float* mean, float* std) {
+    thrust::device_vector<float> d_mean(n_features, 0.0f);
+    thrust::device_vector<float> d_std(n_features, 0.0f);
+    
+    // Calculate mean
+    for (int f = 0; f < n_features; ++f) {
+        thrust::device_ptr<const float> d_feature(data + f);
+        float feature_mean = thrust::reduce(
+            thrust::device,
+            d_feature,
+            d_feature + n_samples * n_features,
+            0.0f,
+            thrust::plus<float>()
+        ) / n_samples;
+        d_mean[f] = feature_mean;
+    }
+    
+    // Calculate standard deviation
+    for (int f = 0; f < n_features; ++f) {
+        thrust::device_ptr<const float> d_feature(data + f);
+        float feature_mean = d_mean[f];
+        float variance = thrust::transform_reduce(
+            thrust::device,
+            d_feature,
+            d_feature + n_samples * n_features,
+            [=] __device__ (float x) { return (x - feature_mean) * (x - feature_mean); },
+            0.0f,
+            thrust::plus<float>()
+        ) / n_samples;
+        d_std[f] = sqrt(variance);
+    }
+    
+    // Copy results back to host
+    thrust::copy(d_mean.begin(), d_mean.end(), mean);
+    thrust::copy(d_std.begin(), d_std.end(), std);
+}
