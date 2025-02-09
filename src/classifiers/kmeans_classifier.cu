@@ -353,31 +353,47 @@ float KMeansClassifier::getAccuracy(const float* features, const int* labels, in
 }
 
 void KMeansClassifier::mapClustersToClasses(const int* labels, int n_samples) {
-    thrust::device_vector<int> d_cluster_counts(n_clusters * 3, 0);  // 3 classes for Iris
+    // Allocate temporary memory for voting
+    int* h_votes = new int[n_clusters * N_CLASSES]();
+    int* h_cluster_to_class = new int[n_clusters];
     
-    // Count class occurrences for each cluster
-    for (int i = 0; i < n_samples; ++i) {
-        int cluster = d_cluster_labels[i];
-        int label = labels[i];
-        d_cluster_counts[cluster * 3 + label]++;
-    }
-    
-    // Assign each cluster to the most frequent class
-    thrust::device_vector<int> d_map(n_clusters);
-    for (int i = 0; i < n_clusters; ++i) {
-        int max_count = 0;
-        int max_class = 0;
-        for (int j = 0; j < 3; ++j) {
-            int count = d_cluster_counts[i * 3 + j];
-            if (count > max_count) {
-                max_count = count;
-                max_class = j;
-            }
+    try {
+        // Count votes for each cluster
+        thrust::device_ptr<const int> d_cluster_labels_ptr(d_cluster_labels);
+        thrust::device_ptr<const int> d_labels_ptr(labels);
+        
+        for (int i = 0; i < n_samples; i++) {
+            int cluster = d_cluster_labels_ptr[i];
+            int label = d_labels_ptr[i];
+            h_votes[cluster * N_CLASSES + label]++;
         }
-        d_map[i] = max_class;
+        
+        // Assign each cluster to the majority class
+        for (int i = 0; i < n_clusters; i++) {
+            int max_votes = -1;
+            int majority_class = 0;
+            
+            for (int j = 0; j < N_CLASSES; j++) {
+                int votes = h_votes[i * N_CLASSES + j];
+                if (votes > max_votes) {
+                    max_votes = votes;
+                    majority_class = j;
+                }
+            }
+            
+            h_cluster_to_class[i] = majority_class;
+        }
+        
+        // Copy mapping to device
+        CUDA_CHECK(cudaMemcpy(d_cluster_to_class_map, h_cluster_to_class, 
+                            n_clusters * sizeof(int), cudaMemcpyHostToDevice));
+    }
+    catch (const std::runtime_error& e) {
+        delete[] h_votes;
+        delete[] h_cluster_to_class;
+        throw;
     }
     
-    // Copy mapping to device memory
-    CUDA_CHECK(cudaMemcpy(d_cluster_to_class_map, thrust::raw_pointer_cast(d_map.data()),
-                         n_clusters * sizeof(int), cudaMemcpyDeviceToDevice));
+    delete[] h_votes;
+    delete[] h_cluster_to_class;
 }
