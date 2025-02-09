@@ -201,24 +201,9 @@ float NeuralNetwork::getAccuracy(const float* features, const int* labels, int n
     CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
     
     predict(features, predictions, n_samples);
-    
-    // Calculate accuracy using thrust
-    thrust::device_ptr<const int> d_pred_ptr(predictions);
-    thrust::device_ptr<const int> d_labels_ptr(labels);
-    
-    int correct = thrust::transform_reduce(
-        thrust::device,
-        thrust::make_counting_iterator(0),
-        thrust::make_counting_iterator(n_samples),
-        [=] __device__ (int idx) -> int {
-            return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
-        },
-        0,
-        thrust::plus<int>()
-    );
-    
+    float accuracy = MetricsUtils::calculateAccuracy(predictions, labels, n_samples);
     CUDA_CHECK(cudaFree(predictions));
-    return static_cast<float>(correct) / n_samples;
+    return accuracy;
 }
 
 NeuralNetwork::~NeuralNetwork() {
