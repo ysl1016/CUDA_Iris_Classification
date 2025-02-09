@@ -6,12 +6,8 @@
 
 class EnsembleClassifier {
 public:
-    EnsembleClassifier() : nn(4, 8, 3), kmeans(3) {
-        CUDA_CHECK(cudaMalloc(&d_weights, n_classifiers * sizeof(float)));
-        CUDA_CHECK(cudaMalloc(&d_predictions, n_classifiers * MAX_SAMPLES * sizeof(int)));
-    }
+    EnsembleClassifier();
     
-    // 
     bool init() {
         if (d_weights == nullptr || d_predictions == nullptr) {
             cleanup();
