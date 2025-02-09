@@ -7,15 +7,7 @@
 class EnsembleClassifier {
 public:
     EnsembleClassifier();
-    
-    bool init() {
-        if (d_weights == nullptr || d_predictions == nullptr) {
-            cleanup();
-            return false;
-        }
-        return true;
-    }
-
+    bool init();
     ~EnsembleClassifier();
 
     void train(const IrisData& data);
@@ -30,13 +22,7 @@ private:
     float* d_weights;        // Classifier weights
     int* d_predictions;      // Individual classifier predictions
     static const int n_classifiers = 3;
-    static const int MAX_SAMPLES = 150;  // Maximum number of samples (Iris dataset size)
     
     void updateWeights(const float* features, const int* labels, int n_samples);
-    void cleanup() {
-        if (d_weights) cudaFree(d_weights);
-        if (d_predictions) cudaFree(d_predictions);
-        d_weights = nullptr;
-        d_predictions = nullptr;
-    }
+    void cleanup();
 };
