@@ -8,6 +8,8 @@
 #include <thrust/extrema.h>
 #include <thrust/sequence.h>
 #include <random>
+#include <thrust/transform_reduce.h>
+#include <thrust/functional.h>
 
 __global__ void computeMeanKernel(const float* features, 
                                  float* mean, 
@@ -100,11 +102,16 @@ void DataPreprocessor::standardizeFeatures(IrisData& data) {
     
     calculateMeanAndStd(data.features, data.n_samples, IrisData::n_features, mean, std);
     
-    int block_size = 256;
-    int grid_size = (data.n_samples * IrisData::n_features + block_size - 1) / block_size;
-    standardizeKernel<<<grid_size, block_size>>>(
-        data.features, mean, std, data.n_samples, IrisData::n_features
-    );
+    // Standardize features using thrust transform
+    thrust::device_ptr<float> d_features(data.features);
+    for (int f = 0; f < IrisData::n_features; ++f) {
+        thrust::transform(
+            d_features + f,
+            d_features + data.n_samples * IrisData::n_features,
+            d_features + f,
+            [=] __device__ (float x) { return (x - mean[f]) / std[f]; }
+        );
+    }
     
     CUDA_CHECK(cudaFreeHost(mean));
     CUDA_CHECK(cudaFreeHost(std));
