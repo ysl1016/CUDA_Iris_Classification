@@ -39,9 +39,12 @@ struct IrisData {
     int n_features;      // 
     int n_classes;       // 
     
+    static constexpr int FEATURE_DIM = 4;
+    static constexpr int CLASS_COUNT = 3;
+    
     // Constructor
     IrisData() : features(nullptr), labels(nullptr), 
-                 n_samples(0), n_features(N_FEATURES), n_classes(N_CLASSES) {}
+                 n_samples(0), n_features(FEATURE_DIM), n_classes(CLASS_COUNT) {}
 };
 
 // Performance metrics structure
