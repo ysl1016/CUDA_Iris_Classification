@@ -68,6 +68,7 @@ int main() {
             return -1;
         }
         
+        std::cout << "Training ensemble classifier..." << std::endl;
         ensemble.train(train_data);
                 
         float accuracy = ensemble.getAccuracy(
