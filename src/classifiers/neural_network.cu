@@ -124,7 +124,7 @@ void NeuralNetwork::predict(const float* features, int* predictions, int n_sampl
 }
 
 void NeuralNetwork::initializeParameters() {
-    // Existing allocations
+    // Allocations
     size_t w1_size = input_size * hidden_size * sizeof(float);
     size_t w2_size = hidden_size * output_size * sizeof(float);
     size_t b1_size = hidden_size * sizeof(float);
@@ -139,31 +139,29 @@ void NeuralNetwork::initializeParameters() {
     CUDA_CHECK(cudaMalloc(&d_h, h_size));
     CUDA_CHECK(cudaMalloc(&d_output, output_size_bytes));
     
-    // Initialize parameters
+    // Xavier initialization
+    float w1_scale = sqrt(2.0f / input_size);
+    float w2_scale = sqrt(2.0f / hidden_size);
+    
     thrust::device_ptr<float> w1_ptr(d_W1);
     thrust::device_ptr<float> w2_ptr(d_W2);
     thrust::device_ptr<float> b1_ptr(d_b1);
     thrust::device_ptr<float> b2_ptr(d_b2);
     
-    // Xavier initialization
-    float w1_scale = sqrt(2.0f / input_size);
-    float w2_scale = sqrt(2.0f / hidden_size);
-    
-    // Xavier initialization with public lambda
-    auto xavier_init = [] __device__ (float scale) {
-        return scale * (rand() / float(RAND_MAX) - 0.5f);
-    };
-    
     thrust::transform(thrust::device,
         w1_ptr, w1_ptr + input_size * hidden_size,
         w1_ptr,
-        [=] __device__ (float) { return xavier_init(w1_scale); }
+        [w1_scale] __device__ (float) { 
+            return w1_scale * (curand_uniform(0) - 0.5f); 
+        }
     );
     
     thrust::transform(thrust::device,
         w2_ptr, w2_ptr + hidden_size * output_size,
         w2_ptr,
-        [=] __device__ (float) { return xavier_init(w2_scale); }
+        [w2_scale] __device__ (float) { 
+            return w2_scale * (curand_uniform(0) - 0.5f); 
+        }
     );
     
     thrust::fill(thrust::device, b1_ptr, b1_ptr + hidden_size, 0.0f);
