@@ -14,6 +14,7 @@ public:
     void train(const float* features, const int* labels, int n_samples, int epochs = MAX_EPOCHS);
     void predict(const float* features, int* predictions, int n_samples);
     float getAccuracy(const float* features, const int* labels, int n_samples);
+    void initializeParameters();
 
 private:
     int input_size;
@@ -28,7 +29,6 @@ private:
     float* d_h;
     float* d_output;
     
-    void initializeParameters();
     void forwardPass(const float* input, int n_samples);
     void backwardPass(const float* input, const int* labels, int n_samples);
     void cleanup();
