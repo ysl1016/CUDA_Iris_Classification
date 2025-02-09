@@ -13,6 +13,11 @@
     // Add constant for max epochs
     #define MAX_EPOCHS 100
 
+    EnsembleClassifier::EnsembleClassifier() : nn(4, 8, 3), kmeans(3) {
+        cudaMalloc(&d_weights, n_classifiers * sizeof(float));
+        cudaMalloc(&d_predictions, n_classifiers * MAX_SAMPLES * sizeof(int));
+    }
+
     EnsembleClassifier::~EnsembleClassifier() noexcept {
         if (d_weights) cudaFree(d_weights);
         if (d_predictions) cudaFree(d_predictions);
@@ -26,12 +31,19 @@
                                     int n_classes) {
         int idx = blockIdx.x * blockDim.x + threadIdx.x;
         
+        // shared memory 
+        extern __shared__ float shared_scores[];
+        float* class_scores = &shared_scores[threadIdx.x * n_classes];
+        
         if (idx < n_samples) {
-            float* class_scores = new float[n_classes]();
+            // Initialize scores to 0
+            for (int i = 0; i < n_classes; i++) {
+                class_scores[i] = 0.0f;
+            }
             
             // Accumulate weighted votes
             for (int i = 0; i < n_classifiers; i++) {
-                int pred = individual_predictions[idx * n_classifiers + i];
+                int pred = individual_predictions[i * n_samples + idx];
                 class_scores[pred] += weights[i];
             }
             
@@ -46,7 +58,6 @@
             }
             
             final_predictions[idx] = max_class;
-            delete[] class_scores;
         }
     }
 
@@ -93,15 +104,17 @@
             // Copy predictions and combine
             cudaMemcpy(d_predictions, d_svm_pred, n_samples * sizeof(int), 
                       cudaMemcpyDeviceToDevice);
-            cudaMemcpy(d_predictions + MAX_SAMPLES, d_nn_pred, n_samples * sizeof(int), 
+            cudaMemcpy(d_predictions + n_samples, d_nn_pred, n_samples * sizeof(int), 
                       cudaMemcpyDeviceToDevice);
-            cudaMemcpy(d_predictions + (2 * MAX_SAMPLES), d_kmeans_pred, n_samples * sizeof(int), 
+            cudaMemcpy(d_predictions + (2 * n_samples), d_kmeans_pred, n_samples * sizeof(int), 
                       cudaMemcpyDeviceToDevice);
             
             dim3 block_size(BLOCK_SIZE);
             dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
             
-            weightedVoteKernel<<<grid_size, block_size>>>(
+            size_t shared_mem_size = BLOCK_SIZE * N_CLASSES * sizeof(float);
+
+            weightedVoteKernel<<<grid_size, block_size, shared_mem_size>>>(
                 d_predictions,
                 d_weights,
                 predictions,
