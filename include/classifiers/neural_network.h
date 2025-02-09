@@ -21,6 +21,9 @@ private:
     int hidden_size;
     int output_size;
     
+    float* d_weights;
+    float learning_rate = 0.01f;
+    
     void initializeParameters();
     void forwardPass(const float* features, int n_samples);
     void backwardPass(const float* features, const int* labels, int n_samples);
