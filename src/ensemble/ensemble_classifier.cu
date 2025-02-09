@@ -1,6 +1,7 @@
 #include "ensemble/ensemble_classifier.h"
 #include "utils/metrics_utils.h"
 #include <thrust/execution_policy.h>
+#include <chrono>
 
 // Add constant for max epochs
 #define MAX_EPOCHS 100
@@ -121,16 +122,15 @@ float EnsembleClassifier::getAccuracy(const float* features, const int* labels, 
     int* predictions;
     CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
     
-    try {
-        predict(features, predictions, n_samples);
-        
-        float accuracy = MetricsUtils::calculateAccuracy(predictions, labels, n_samples);
-        CUDA_CHECK(cudaFree(predictions));
-        return accuracy;
-    } catch (const std::runtime_error& e) {
-        if (predictions) cudaFree(predictions);
-        throw std::runtime_error("Accuracy calculation failed: " + std::string(e.what()));
-    }
+    auto start = std::chrono::high_resolution_clock::now();
+    predict(features, predictions, n_samples);
+    auto end = std::chrono::high_resolution_clock::now();
+    float prediction_time = std::chrono::duration<float, std::milli>(end - start).count();
+    
+    float accuracy = MetricsUtils::calculateAccuracy(predictions, labels, n_samples);
+    CUDA_CHECK(cudaFree(predictions));
+    
+    return accuracy;
 }
 
 void EnsembleClassifier::updateWeights(const float* features, const int* labels, int n_samples) {
