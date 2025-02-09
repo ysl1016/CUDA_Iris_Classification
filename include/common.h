@@ -41,12 +41,6 @@ struct IrisData {
     // Constructor
     IrisData() : features(nullptr), labels(nullptr), 
                  n_samples(0), n_features(0), n_classes(0) {}
-                 
-    // Destructor
-    ~IrisData() {
-        if (features) cudaFree(features);
-        if (labels) cudaFree(labels);
-    }
 };
 
 // Performance metrics structure
