@@ -61,6 +61,11 @@ void SVMClassifier::train(const float* features, const int* labels, int n_sample
     // Compute kernel matrix
     computeKernelMatrix(features, n_samples);
     
+    // Allocate memory for alpha
+    CUDA_CHECK(cudaMalloc(&d_alpha, n_samples * sizeof(float)));
+    thrust::device_ptr<float> d_alpha_ptr(d_alpha);
+    thrust::fill(d_alpha_ptr, d_alpha_ptr + n_samples, 0.0f);
+    
     // Optimize dual problem using SMO algorithm
     optimizeDual();
     
