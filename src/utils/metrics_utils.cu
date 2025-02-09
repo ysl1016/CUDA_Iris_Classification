@@ -19,41 +19,22 @@ struct CompareLabels {
 
 // Calculate accuracy by comparing predictions with true labels
 float calculateAccuracy(const int* predictions, const int* labels, int n_samples) {
-    try {
-        std::cout << "Starting accuracy calculation..." << std::endl;
-        std::cout << "Number of samples: " << n_samples << std::endl;
-        
-        // Allocate device memory for labels
-        int* d_labels;
-        CUDA_CHECK(cudaMalloc(&d_labels, n_samples * sizeof(int)));
-        CUDA_CHECK(cudaMemcpy(d_labels, labels, n_samples * sizeof(int), 
-                             cudaMemcpyHostToDevice));
-        
-        // Create device pointer for predictions and labels
-        thrust::device_ptr<const int> d_pred(predictions);
-        thrust::device_ptr<const int> d_labels_ptr(d_labels);
-        
-        // Calculate accuracy using raw pointers
-        int correct = thrust::transform_reduce(
-            thrust::cuda::par,
-            thrust::make_counting_iterator<int>(0),
-            thrust::make_counting_iterator<int>(n_samples),
-            [=] __host__ __device__ (int idx) -> int {
-                return d_pred[idx] == d_labels_ptr[idx] ? 1 : 0;
-            },
-            0,
-            thrust::plus<int>()
-        );
-        
-        // Cleanup
-        CUDA_CHECK(cudaFree(d_labels));
-        
-        std::cout << "Correct predictions: " << correct << "/" << n_samples << std::endl;
-        return static_cast<float>(correct) / n_samples;
-    } catch (const std::runtime_error& e) {
-        std::cerr << "Detailed error in accuracy calculation: " << e.what() << std::endl;
-        throw;
-    }
+    // Create device vectors (자동 메모리 관리)
+    thrust::device_vector<int> d_predictions(predictions, predictions + n_samples);
+    thrust::device_vector<int> d_labels(labels, labels + n_samples);
+    
+    // Count correct predictions using zip_iterator
+    int correct = thrust::transform_reduce(
+        thrust::make_zip_iterator(thrust::make_tuple(d_predictions.begin(), d_labels.begin())),
+        thrust::make_zip_iterator(thrust::make_tuple(d_predictions.end(), d_labels.end())),
+        [] __device__ (const thrust::tuple<int, int>& t) {
+            return thrust::get<0>(t) == thrust::get<1>(t) ? 1 : 0;
+        },
+        0,
+        thrust::plus<int>()
+    );
+    
+    return static_cast<float>(correct) / n_samples;
 }
 
 // CUDA kernel for computing confusion matrix
