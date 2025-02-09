@@ -70,35 +70,24 @@ __global__ void computeDistancesKernel(const float* features,
 }
 
 // Update centroids based on mean of assigned points
-__global__ void updateCentroidsKernel(const float* features,
-                                     const int* cluster_labels,
-                                     float* new_centroids,
-                                     int* cluster_sizes,
-                                     int n_samples,
-                                     int n_features,
-                                     int k) {
+__global__ void updateCentroidsKernel(
+    const float* features,
+    const int* cluster_labels,
+    float* new_centroids,
+    int* cluster_sizes,
+    int n_samples,
+    int n_features,
+    int n_clusters
+) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= n_samples) return;
     
-    if (idx < k * n_features) {
-        int cluster = idx / n_features;
-        int feature = idx % n_features;
-        
-        float sum = 0.0f;
-        int count = 0;
-        
-        for (int i = 0; i < n_samples; i++) {
-            if (cluster_labels[i] == cluster) {
-                sum += features[i * n_features + feature];
-                count++;
-            }
-        }
-        
-        if (count > 0) {
-            new_centroids[cluster * n_features + feature] = sum / count;
-            if (feature == 0) {
-                cluster_sizes[cluster] = count;
-            }
-        }
+    int cluster = cluster_labels[idx];
+    atomicAdd(&cluster_sizes[cluster], 1);
+    
+    for (int j = 0; j < n_features; j++) {
+        float feature_val = features[idx * n_features + j];
+        atomicAdd(&new_centroids[cluster * n_features + j], feature_val);
     }
 }
 
@@ -285,55 +274,46 @@ void KMeansClassifier::assignClusters(const float* features, int n_samples) {
 }
 
 bool KMeansClassifier::updateCentroids(const float* features, int n_samples) {
-    thrust::device_ptr<const int> d_assignments(d_cluster_labels);
-    thrust::device_ptr<const float> d_features(features);
-    thrust::device_ptr<float> d_new_centroids_ptr(d_new_centroids);
+    // Reset new centroids and cluster sizes
+    CUDA_CHECK(cudaMemset(d_new_centroids, 0, n_clusters * N_FEATURES * sizeof(float)));
+    CUDA_CHECK(cudaMemset(d_cluster_sizes, 0, n_clusters * sizeof(int)));
     
-    // Zero out new centroids
-    thrust::fill(d_new_centroids_ptr, d_new_centroids_ptr + n_clusters * 4, 0.0f);
+    // Calculate sum of points in each cluster
+    dim3 block_size(BLOCK_SIZE);
+    dim3 grid_size((n_samples + BLOCK_SIZE - 1) / BLOCK_SIZE);
     
-    // Create temporary storage for cluster sizes
-    thrust::device_vector<int> d_cluster_sizes_vec(n_clusters, 0);
-    
-    // Copy cluster labels to device vector
-    thrust::device_vector<int> d_labels(d_cluster_labels, d_cluster_labels + n_samples);
-    thrust::device_vector<float> d_feature_values(features, features + n_samples * 4);
-    
-    // Perform reduction by key operation
-    thrust::device_vector<int> d_keys_output(n_samples);
-    thrust::device_vector<float> d_values_output(n_samples);
-    
-    thrust::reduce_by_key(
-        thrust::device,
-        d_labels.begin(),
-        d_labels.end(),
-        d_feature_values.begin(),
-        d_keys_output.begin(),
-        d_values_output.begin(),
-        thrust::equal_to<int>(),
-        thrust::plus<float>()
+    updateCentroidsKernel<<<grid_size, block_size>>>(
+        features,
+        d_cluster_labels,
+        d_new_centroids,
+        d_cluster_sizes,
+        n_samples,
+        N_FEATURES,
+        n_clusters
     );
     
-    // Compute means
-    for (int c = 0; c < n_clusters; ++c) {
-        int size = d_cluster_sizes_vec[c];
-        if (size > 0) {
-            for (int f = 0; f < 4; ++f) {
-                d_new_centroids_ptr[c * 4 + f] = d_values_output[c * 4 + f] / size;
-            }
+    // Check for convergence
+    float max_movement = 0.0f;
+    thrust::device_ptr<float> d_old_ptr(d_centroids);
+    thrust::device_ptr<float> d_new_ptr(d_new_centroids);
+    thrust::device_ptr<int> d_sizes_ptr(d_cluster_sizes);
+    
+    for (int i = 0; i < n_clusters; i++) {
+        // Skip empty clusters
+        if (d_sizes_ptr[i] == 0) continue;
+        
+        // Calculate new centroid positions
+        for (int j = 0; j < N_FEATURES; j++) {
+            int idx = i * N_FEATURES + j;
+            float old_pos = d_old_ptr[idx];
+            float new_pos = d_new_ptr[idx] / d_sizes_ptr[i];
+            d_old_ptr[idx] = new_pos;  // Update centroid position
+            
+            // Track maximum movement
+            float movement = fabs(new_pos - old_pos);
+            max_movement = max(max_movement, movement);
         }
     }
-    
-    // Calculate maximum centroid movement
-    float max_movement = 0.0f;
-    for (int i = 0; i < n_clusters * 4; ++i) {
-        float diff = abs(d_centroids[i] - d_new_centroids[i]);
-        max_movement = max(max_movement, diff);
-    }
-    
-    // Update centroids
-    thrust::copy(d_new_centroids_ptr, d_new_centroids_ptr + n_clusters * 4, 
-                thrust::device_ptr<float>(d_centroids));
     
     return max_movement < convergence_threshold;
 }
