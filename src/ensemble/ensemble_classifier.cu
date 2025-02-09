@@ -146,15 +146,32 @@
         int* predictions;
         CUDA_CHECK(cudaMalloc(&predictions, n_samples * sizeof(int)));
         
-        auto start = std::chrono::high_resolution_clock::now();
-        predict(features, predictions, n_samples);
-        auto end = std::chrono::high_resolution_clock::now();
-        float prediction_time = std::chrono::duration<float, std::milli>(end - start).count();
-        
-        float accuracy = MetricsUtils::calculateAccuracy(predictions, labels, n_samples);
-        CUDA_CHECK(cudaFree(predictions));
-        
-        return accuracy;
+        try {
+            predict(features, predictions, n_samples);
+            
+            // Calculate accuracy using thrust
+            thrust::device_ptr<const int> d_pred_ptr(predictions);
+            thrust::device_ptr<const int> d_labels_ptr(labels);
+            
+            int correct = thrust::transform_reduce(
+                thrust::device,
+                thrust::make_counting_iterator(0),
+                thrust::make_counting_iterator(n_samples),
+                [=] __device__ (int idx) -> int {
+                    return d_pred_ptr[idx] == d_labels_ptr[idx] ? 1 : 0;
+                },
+                0,
+                thrust::plus<int>()
+            );
+            
+            float accuracy = static_cast<float>(correct) / n_samples;
+            CUDA_CHECK(cudaFree(predictions));
+            return accuracy;
+        }
+        catch (const std::runtime_error& e) {
+            if (predictions) cudaFree(predictions);
+            throw std::runtime_error("Accuracy calculation failed: " + std::string(e.what()));
+        }
     }
 
     void EnsembleClassifier::updateWeights(const float* features, const int* labels, int n_samples) {
