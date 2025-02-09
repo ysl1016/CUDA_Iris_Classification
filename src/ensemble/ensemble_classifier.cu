@@ -15,7 +15,7 @@
 
     EnsembleClassifier::EnsembleClassifier() : nn(4, 8, 3), kmeans(3) {
         CUDA_CHECK(cudaMalloc(&d_weights, n_classifiers * sizeof(float)));
-        CUDA_CHECK(cudaMalloc(&d_predictions, n_samples * n_classifiers * sizeof(int)));
+        CUDA_CHECK(cudaMalloc(&d_predictions, MAX_SAMPLES * n_classifiers * sizeof(int)));
     }
 
     EnsembleClassifier::~EnsembleClassifier() noexcept {
