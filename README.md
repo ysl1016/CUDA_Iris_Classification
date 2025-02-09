@@ -87,6 +87,11 @@ iris_classification_system/
 │   ├── ensemble/          # Ensemble system
 │   └── utils/             # Utility functions
 ├── include/               # Header files
+│   ├── data/              # Data loading and management
+│   ├── preprocessing/      # Data preprocessing
+│   ├── classifiers/       # Classification algorithms
+│   ├── ensemble/          # Ensemble system
+│   └── utils/             # Utility functions
 ├── build/                 # Build directory
 ├── CMakeLists.txt
 ├── install.sh
@@ -98,7 +103,7 @@ iris_classification_system/
 ### Quick Install
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/iris_classification_system.git
+git clone https://github.com/ysl1016/iris_classification_system.git
 cd iris_classification_system
 
 # Make scripts executable
@@ -221,7 +226,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-For questions and support, please open an issue in the GitHub repository or contact [eyeon3800@gmail.com].
+For questions and support, please open an issue in the GitHub repository or contact [danielch9152@gmail.com].
 
 ---
 
