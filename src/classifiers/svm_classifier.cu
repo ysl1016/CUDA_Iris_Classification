@@ -6,6 +6,7 @@
 #include <thrust/reduce.h>
 #include <thrust/functional.h>
 #include <thrust/extrema.h>
+#include "utils/metrics_utils.h"
 
 __global__ void computeRBFKernel(float* kernel_matrix,
                                 const float* features,
