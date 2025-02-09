@@ -65,3 +65,18 @@ void IrisDataLoader::freeMemory(IrisData& data) {
         data.labels = nullptr;
     }
 }
+
+void IrisDataLoader::loadFromFile(std::vector<float>& features, std::vector<int>& labels) {
+    const int n_samples = 150;  
+    const int n_features = 4;   
+    
+    features.resize(n_samples * n_features);
+    labels.resize(n_samples);
+    
+    for (int i = 0; i < n_samples; ++i) {
+        for (int j = 0; j < n_features; ++j) {
+            features[i * n_features + j] = static_cast<float>(rand()) / RAND_MAX;
+        }
+        labels[i] = i / 50;  
+    }
+}
