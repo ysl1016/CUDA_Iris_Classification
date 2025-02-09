@@ -149,16 +149,21 @@ void NeuralNetwork::initializeParameters() {
     float w1_scale = sqrt(2.0f / input_size);
     float w2_scale = sqrt(2.0f / hidden_size);
     
+    // Xavier initialization with public lambda
+    auto xavier_init = [] __device__ (float scale) {
+        return scale * (rand() / float(RAND_MAX) - 0.5f);
+    };
+    
     thrust::transform(thrust::device,
         w1_ptr, w1_ptr + input_size * hidden_size,
         w1_ptr,
-        [=] __device__ (float) { return w1_scale * (rand() / float(RAND_MAX) - 0.5f); }
+        [=] __device__ (float) { return xavier_init(w1_scale); }
     );
     
     thrust::transform(thrust::device,
         w2_ptr, w2_ptr + hidden_size * output_size,
         w2_ptr,
-        [=] __device__ (float) { return w2_scale * (rand() / float(RAND_MAX) - 0.5f); }
+        [=] __device__ (float) { return xavier_init(w2_scale); }
     );
     
     thrust::fill(thrust::device, b1_ptr, b1_ptr + hidden_size, 0.0f);
