@@ -217,19 +217,7 @@ void KMeansClassifier::predict(const float* features, int n_samples, int* predic
 }
 
 float KMeansClassifier::accuracy(const int* predictions, const int* labels, int n_samples) {
-    thrust::device_ptr<const int> d_labels_ptr(labels);
-    thrust::device_ptr<const int> d_pred_ptr(predictions);
-    
-    CompareLabels compare(d_pred_ptr, d_labels_ptr);
-    int correct = thrust::transform_reduce(
-        thrust::make_counting_iterator(0),
-        thrust::make_counting_iterator(n_samples),
-        compare,
-        0,
-        thrust::plus<int>()
-    );
-    
-    return static_cast<float>(correct) / n_samples;
+    return MetricsUtils::calculateAccuracy(predictions, labels, n_samples);
 }
 
 KMeansClassifier::~KMeansClassifier() noexcept {
