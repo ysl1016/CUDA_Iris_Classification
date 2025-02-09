@@ -12,15 +12,4 @@ public:
 private:
     static void calculateMeanAndStd(const float* data, int n_samples, int n_features,
                                   float* mean, float* std);
-    
-    struct VarianceOp {
-        float mean;
-        VarianceOp(float m) : mean(m) {}
-        
-        __host__ __device__
-        float operator()(float x) const {
-            float diff = x - mean;
-            return diff * diff;
-        }
-    };
 };
