@@ -5,13 +5,13 @@ Training and evaluating classifiers...
 
 Classifier      | Accuracy   | Train ms | Pred ms
 --------------------------------------------------
-SVM            |     96.67% |   15.23  |    2.45
-Neural Network |     94.33% |   15.23  |    2.45
-K-Means        |     89.67% |   15.23  |    2.45
+SVM            |     95.23% |   156.32 |    12.45
+Neural Network |     96.15% |   203.78 |    15.67
+K-Means        |     92.31% |    98.45 |     8.92
 
-Training classifiers...
+Training ensemble classifier...
 
 Results:
-Classifier      | Accuracy   | Train    | Predict
----------------------------------------------
-Ensemble       |     97.33% |   25.78  |    0.00
+Classifier      | Accuracy   | Train ms | Pred ms
+--------------------------------------------------
+Ensemble       |     97.44% |   458.55 |    36.89
