@@ -7,6 +7,8 @@
 #include <thrust/functional.h>
 #include <thrust/extrema.h>
 #include <thrust/device_ptr.h>
+#include <curand_kernel.h>
+#include <time.h>
 
 // Constants
 #define LEARNING_RATE 0.01f
@@ -148,20 +150,27 @@ void NeuralNetwork::initializeParameters() {
     thrust::device_ptr<float> b1_ptr(d_b1);
     thrust::device_ptr<float> b2_ptr(d_b2);
     
+    // CUDA 난수 생성을 위한 커널
+    auto init_weights = [] __device__ (float scale, unsigned int seed) {
+        curandState state;
+        curand_init(seed, threadIdx.x, 0, &state);
+        return scale * (2.0f * curand_uniform(&state) - 1.0f);
+    };
+    
+    unsigned int seed = static_cast<unsigned int>(time(nullptr));
+    
     thrust::transform(thrust::device,
-        w1_ptr, w1_ptr + input_size * hidden_size,
+        thrust::make_counting_iterator(0),
+        thrust::make_counting_iterator(input_size * hidden_size),
         w1_ptr,
-        [w1_scale] __device__ (float) { 
-            return w1_scale * (curand_uniform(0) - 0.5f); 
-        }
+        [=] __device__ (int idx) { return init_weights(w1_scale, seed + idx); }
     );
     
     thrust::transform(thrust::device,
-        w2_ptr, w2_ptr + hidden_size * output_size,
+        thrust::make_counting_iterator(0),
+        thrust::make_counting_iterator(hidden_size * output_size),
         w2_ptr,
-        [w2_scale] __device__ (float) { 
-            return w2_scale * (curand_uniform(0) - 0.5f); 
-        }
+        [=] __device__ (int idx) { return init_weights(w2_scale, seed + idx); }
     );
     
     thrust::fill(thrust::device, b1_ptr, b1_ptr + hidden_size, 0.0f);
