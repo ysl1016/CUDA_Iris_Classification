@@ -9,16 +9,18 @@
 #include <stdexcept>
 #include <string>
 
-// Constants
+// CUDA Constants
 #define BLOCK_SIZE 256
 #define MAX_THREADS_PER_BLOCK 1024
 #define WARP_SIZE 32
+
+// Training Constants
 #define MAX_EPOCHS 100
 #define LEARNING_RATE 0.01f
 #define CONVERGENCE_THRESHOLD 1e-6f
-#define MAX_SAMPLES 150
 
-// Iris dataset constants
+// Iris Dataset Constants
+#define MAX_SAMPLES 150
 #define N_FEATURES 4
 #define N_CLASSES 3
 
@@ -37,15 +39,12 @@ struct IrisData {
     float* features;      // Input features
     int* labels;         // Class labels
     int n_samples;       // Number of samples
-    int n_features;      // 
-    int n_classes;       // 
-    
-    static constexpr int FEATURE_DIM = 4;
-    static constexpr int CLASS_COUNT = 3;
+    int n_features;      // Number of features
+    int n_classes;       // Number of classes
     
     // Constructor
     IrisData() : features(nullptr), labels(nullptr), 
-                 n_samples(0), n_features(FEATURE_DIM), n_classes(CLASS_COUNT) {}
+                 n_samples(0), n_features(N_FEATURES), n_classes(N_CLASSES) {}
 };
 
 // Performance metrics structure
