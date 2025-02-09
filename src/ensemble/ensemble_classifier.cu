@@ -1,6 +1,9 @@
     #include "ensemble/ensemble_classifier.h"
     #include "utils/metrics_utils.h"
     #include <thrust/execution_policy.h>
+    #include <thrust/transform_reduce.h>
+    #include <thrust/functional.h>
+    #include <thrust/iterator/counting_iterator.h>
     #include <chrono>
     /*
     Reasons why GPU implementation can enhance accuracy:
