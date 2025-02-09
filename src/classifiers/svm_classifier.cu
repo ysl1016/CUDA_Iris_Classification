@@ -81,3 +81,37 @@ void SVMClassifier::predict(const float* features, int* predictions, int n_sampl
         n_samples
     );
 }
+
+void SVMClassifier::computeKernelMatrix(const float* features, int n_samples) {
+    // Allocate memory for kernel matrix
+    CUDA_CHECK(cudaMalloc(&d_kernel_matrix, n_samples * n_samples * sizeof(float)));
+    
+    // Set up grid and block dimensions
+    dim3 block_dim(16, 16);
+    dim3 grid_dim((n_samples + block_dim.x - 1) / block_dim.x,
+                  (n_samples + block_dim.y - 1) / block_dim.y);
+    
+    // Compute RBF kernel matrix
+    computeRBFKernel<<<grid_dim, block_dim>>>(
+        d_kernel_matrix,
+        features,
+        n_samples,
+        4,  // n_features for Iris
+        gamma
+    );
+    CUDA_CHECK(cudaGetLastError());
+}
+
+void SVMClassifier::optimizeDual() {
+
+    int n_samples = 150; // Iris dataset size
+    
+    // Allocate memory for alpha
+    CUDA_CHECK(cudaMalloc(&d_alpha, n_samples * sizeof(float)));
+    thrust::device_ptr<float> d_alpha_ptr(d_alpha);
+    thrust::fill(d_alpha_ptr, d_alpha_ptr + n_samples, 0.0f);
+    
+    for (int iter = 0; iter < 100; ++iter) {
+        // Update alpha values
+    }
+}
