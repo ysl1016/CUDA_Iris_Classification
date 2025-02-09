@@ -7,9 +7,19 @@
 class EnsembleClassifier {
 public:
     EnsembleClassifier() : nn(4, 8, 3), kmeans(3) {
-        CUDA_CHECK(cudaMalloc(&d_weights, n_classifiers * sizeof(float)));
-        CUDA_CHECK(cudaMalloc(&d_predictions, n_classifiers * sizeof(int)));
+        cudaMalloc(&d_weights, n_classifiers * sizeof(float));
+        cudaMalloc(&d_predictions, n_classifiers * sizeof(int));
     }
+    
+    // 
+    bool init() {
+        if (d_weights == nullptr || d_predictions == nullptr) {
+            cleanup();
+            return false;
+        }
+        return true;
+    }
+
     ~EnsembleClassifier();
 
     void train(const IrisData& data);
@@ -26,4 +36,10 @@ private:
     static const int n_classifiers = 3;
     
     void updateWeights(const float* features, const int* labels, int n_samples);
+    void cleanup() {
+        if (d_weights) cudaFree(d_weights);
+        if (d_predictions) cudaFree(d_predictions);
+        d_weights = nullptr;
+        d_predictions = nullptr;
+    }
 };
