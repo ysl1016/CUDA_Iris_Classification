@@ -3,6 +3,18 @@
 #include <random>
 
 class DataPreprocessor {
+private:
+    struct VarianceOp {
+        float mean;
+        __host__ __device__
+        VarianceOp(float m) : mean(m) {}
+        __host__ __device__
+        float operator()(float x) const {
+            float diff = x - mean;
+            return diff * diff;
+        }
+    };
+
 public:
     // Basic preprocessing methods
     static void normalizeFeatures(IrisData& data);
