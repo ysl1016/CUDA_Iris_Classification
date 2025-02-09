@@ -97,17 +97,17 @@ void DataPreprocessor::normalizeFeatures(IrisData& data) {
 void DataPreprocessor::standardizeFeatures(IrisData& data) {
     float* mean;
     float* std;
-    CUDA_CHECK(cudaMallocHost(&mean, IrisData::n_features * sizeof(float)));
-    CUDA_CHECK(cudaMallocHost(&std, IrisData::n_features * sizeof(float)));
+    CUDA_CHECK(cudaMallocHost(&mean, data.n_features * sizeof(float)));
+    CUDA_CHECK(cudaMallocHost(&std, data.n_features * sizeof(float)));
     
-    calculateMeanAndStd(data.features, data.n_samples, IrisData::n_features, mean, std);
+    calculateMeanAndStd(data.features, data.n_samples, data.n_features, mean, std);
     
     // Standardize features using thrust transform
     thrust::device_ptr<float> d_features(data.features);
-    for (int f = 0; f < IrisData::n_features; ++f) {
+    for (int f = 0; f < data.n_features; ++f) {
         thrust::transform(
             d_features + f,
-            d_features + data.n_samples * IrisData::n_features,
+            d_features + data.n_samples * data.n_features,
             d_features + f,
             [=] __device__ (float x) { return (x - mean[f]) / std[f]; }
         );
